@@ -147,6 +147,10 @@ impl<'a> ExtendedHeader<'a> {
         })
     }
 
+    pub fn verbose(&self) -> bool {
+        false
+    }
+
     pub fn num_bytes(&self) -> usize {
         1 /*message_info*/
         + 1 /*number_of_arguments*/
