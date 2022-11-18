@@ -1,7 +1,7 @@
 // https://www.autosar.org/fileadmin/user_upload/standards/foundation/19-11/AUTOSAR_PRS_LogAndTraceProtocol.pdf
 
-mod util;
-pub use crate::util::*;
+mod error;
+pub use crate::error::*;
 
 mod header;
 pub use crate::header::*;
