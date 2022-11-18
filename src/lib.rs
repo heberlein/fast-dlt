@@ -1,14 +1,23 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+// https://www.autosar.org/fileadmin/user_upload/standards/foundation/19-11/AUTOSAR_PRS_LogAndTraceProtocol.pdf
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod util;
+pub use crate::util::*;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+mod header;
+pub use crate::header::*;
+
+mod message;
+pub use crate::message::*;
+
+mod payload;
+pub use crate::payload::*;
+
+mod file;
+pub use crate::file::*;
+
+mod filter;
+pub use crate::filter::*;
+
+pub mod arguments;
+
+// TODO: use Cow<'a, str> everywhere?
