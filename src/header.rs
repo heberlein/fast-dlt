@@ -21,6 +21,13 @@ impl<'a> StorageHeader<'a> {
             ecu_id,
         })
     }
+
+    pub fn num_bytes(&self) -> usize {
+        4 /*DLT pattern*/ 
+        + 4 /*seconds*/ 
+        + 4 /*microseconds*/ 
+        + 4 /*ecu id*/
+    }
 }
 
 #[repr(u8)]
@@ -49,6 +56,7 @@ impl<'a> StandardHeader<'a> {
         let header_type = buf[0];
         let message_counter = buf[1];
 
+        // use mem::transmute to convert to [u8;2]? only if todo is implemented
         let length = u16::from_be_bytes(buf[2..4].try_into()?);
 
         let mut optionals_offset = 0;
@@ -105,6 +113,15 @@ impl<'a> StandardHeader<'a> {
     pub fn version(&self) -> u8 {
         self.header_type & StdHeaderMask::VersionNumber as u8
     }
+
+    pub fn num_bytes(&self) -> usize {
+        1 /*header type*/
+        + 1 /*message_counter */
+        + 2 /*length */
+        + self.ecu_id.is_some() as usize * 4
+        + self.session_id.is_some() as usize * 4
+        + self.timestamp.is_some() as usize * 4
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -127,6 +144,13 @@ impl<'a> ExtendedHeader<'a> {
             application_id,
             context_id,
         })
+    }
+
+    pub fn num_bytes(&self) -> usize {
+        1 /*message_info*/
+        + 1 /*number_of_arguments*/
+        + 4 /*application_id*/
+        + 4 /*context id*/
     }
 }
 
