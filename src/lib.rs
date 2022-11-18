@@ -18,6 +18,4 @@ pub use crate::file::*;
 mod filter;
 pub use crate::filter::*;
 
-pub mod arguments;
-
 // TODO: use Cow<'a, str> everywhere?
