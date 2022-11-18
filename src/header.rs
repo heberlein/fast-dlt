@@ -9,6 +9,7 @@ pub struct StorageHeader<'a> {
 }
 impl<'a> StorageHeader<'a> {
     pub fn new(buf: &'a [u8]) -> Result<Self> {
+        // TODO: check if buf is long enough  once, return error if not
         if &buf[..4] != b"DLT\x01" {
             return Err(DltError::MissingDltPattern);
         }
@@ -44,7 +45,7 @@ enum StdHeaderMask {
 pub struct StandardHeader<'a> {
     header_type: u8,
     message_counter: u8,
-    length: u16,
+    pub length: u16,
     ecu_id: Option<&'a str>,
     session_id: Option<u32>,
     timestamp: Option<u32>,
