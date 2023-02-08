@@ -7,10 +7,10 @@ use crate::{
 
 #[derive(Debug)]
 pub struct DltMessage<'a> {
-    storage_header: StorageHeader<'a>,
-    standard_header: StandardHeader<'a>,
-    extended_header: Option<ExtendedHeader<'a>>,
-    payload: Payload<'a>,
+    pub storage_header: StorageHeader<'a>,
+    pub standard_header: StandardHeader<'a>,
+    pub extended_header: Option<ExtendedHeader<'a>>,
+    pub payload: Payload<'a>,
 }
 
 impl<'a> DltMessage<'a> {
@@ -27,19 +27,21 @@ impl<'a> DltMessage<'a> {
         } else {
             None
         };
-
+        let payload_end = standard_header.length as usize + storage_header.num_bytes();
         let payload = if extended_header.as_ref().map_or(false, |hdr| hdr.verbose()) {
-            Payload::Verbose(VerbosePayload::new(&buf[offset..]))
+            Payload::Verbose(VerbosePayload::new(&buf[offset..payload_end]))
         } else {
-            Payload::NonVerbose(NonVerbosePayload::new(&buf[offset..])?)
+            Payload::NonVerbose(NonVerbosePayload::new(&buf[offset..payload_end])?)
         };
 
-        Ok(DltMessage {
+        let msg = DltMessage {
             storage_header,
             standard_header,
             extended_header,
             payload,
-        })
+        };
+
+        Ok(msg)
     }
 
     pub fn num_bytes(&self) -> usize {
