@@ -1,5 +1,10 @@
-// https://www.autosar.org/fileadmin/user_upload/standards/foundation/19-11/AUTOSAR_PRS_LogAndTraceProtocol.pdf
+// Release R22-11 Breaks backward-compatibility, TODO use #[cfg(feature = "r22-11")] to have both versions at the same time
+// https://www.autosar.org/fileadmin/standards/foundation/22-11/AUTOSAR_PRS_LogAndTraceProtocol.pdf
 
+// Currently targeting release R20-11
+// https://www.autosar.org/fileadmin/standards/foundation/20-11/AUTOSAR_PRS_LogAndTraceProtocol.pdf
+
+#![warn(missing_debug_implementations, rust_2018_idioms)]
 mod error;
 pub use crate::error::*;
 
