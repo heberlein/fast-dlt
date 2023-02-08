@@ -1,11 +1,11 @@
 use crate::{DltError, Result};
-use std::str;
+use std::{str};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct StorageHeader<'a> {
     seconds: u32,
     microseconds: i32,
-    ecu_id: &'a str,
+    pub ecu_id: &'a str,
 }
 impl<'a> StorageHeader<'a> {
     pub fn new(buf: &'a [u8]) -> Result<Self> {
@@ -31,14 +31,16 @@ impl<'a> StorageHeader<'a> {
     }
 }
 
+#[rustfmt::skip]
+#[derive(Debug)]
 #[repr(u8)]
 enum StdHeaderMask {
     UseExtendedHeader = 0b00000001,
-    MsbFirst = 0b00000010,
-    WithEcuId = 0b00000100,
-    WithSessionId = 0b00001000,
-    WithTimestamp = 0b00010000,
-    VersionNumber = 0b11100000,
+    MsbFirst =          0b00000010,
+    WithEcuId =         0b00000100,
+    WithSessionId =     0b00001000,
+    WithTimestamp =     0b00010000,
+    VersionNumber =     0b11100000,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -46,7 +48,7 @@ pub struct StandardHeader<'a> {
     header_type: u8,
     message_counter: u8,
     pub length: u16,
-    ecu_id: Option<&'a str>,
+    pub ecu_id: Option<&'a str>,
     session_id: Option<u32>,
     timestamp: Option<u32>,
 }
@@ -115,6 +117,10 @@ impl<'a> StandardHeader<'a> {
         self.header_type & StdHeaderMask::VersionNumber as u8
     }
 
+    pub fn big_endian(&self) -> bool {
+        self.header_type & StdHeaderMask::MsbFirst as u8 != 0
+    }
+
     pub fn num_bytes(&self) -> usize {
         1 /*header type*/
         + 1 /*message_counter */
@@ -125,20 +131,79 @@ impl<'a> StandardHeader<'a> {
     }
 }
 
+
+#[derive(Debug, Clone, Copy)]
+pub enum MessageType {
+    Log = 0x0,
+    AppTrace = 0x1,
+    NwTrace = 0x2,
+    Control = 0x3
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum LogInfo {
+    Fatal = 0x1,
+    Error = 0x2,
+    Warn = 0x3,
+    Info = 0x4,
+    Debug = 0x5,
+    Verbose = 0x6
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum TraceInfo {
+    Variable = 0x1,
+    FunctionIn = 0x2,
+    FunctionOut = 0x3,
+    State = 0x4,
+    Vfb = 0x5
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum BusInfo {
+    Ipc = 0x1,
+    Can = 0x2,
+    Flexray = 0x3,
+    Most = 0x4,
+    Ethernet = 0x5,
+    SomeIP = 0x6,
+    // UserDefined
+
+}
+
+
+#[derive(Debug, Clone, Copy)]
+pub enum ControlInfo {
+    Request = 0x1,
+    Response = 0x2,
+    Time = 0x3
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum MessageTypeInfo {
+    Log(LogInfo),
+    Trace(TraceInfo),
+    Bus(BusInfo),
+    Control(ControlInfo)
+}
+
+
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExtendedHeader<'a> {
     message_info: u8,
-    number_of_arguments: u8,
-    application_id: &'a str,
-    context_id: &'a str,
+    pub number_of_arguments: u8,
+    pub application_id: &'a str,
+    pub context_id: &'a str,
 }
 
 impl<'a> ExtendedHeader<'a> {
     pub fn new(buf: &'a [u8]) -> Result<Self> {
+
         let message_info = buf[0];
         let number_of_arguments = buf[1];
-        let application_id = str::from_utf8(&buf[2..6])?;
-        let context_id = str::from_utf8(&buf[6..10])?;
+        let application_id = str::from_utf8(&buf[2..6])?.trim_end_matches('\0');
+        let context_id = str::from_utf8(&buf[6..10])?.trim_end_matches('\0');
         Ok(Self {
             message_info,
             number_of_arguments,
@@ -148,7 +213,43 @@ impl<'a> ExtendedHeader<'a> {
     }
 
     pub fn verbose(&self) -> bool {
-        false
+        self.message_info & 0b00000001 != 0
+    }
+
+    pub fn message_type(&self) -> MessageType {
+        match self.message_info & 0b00001110 {
+            0x0 => MessageType::Log,
+            0x1 => MessageType::AppTrace,
+            0x2 => MessageType::NwTrace,
+            0x3 => MessageType::Control,
+            _ => unreachable!()
+        }
+
+    }
+
+    pub fn type_info(&self) -> MessageTypeInfo {
+        match (self.message_type(), self.message_info & 0b11110000) {
+            (MessageType::Log, 0x1) => MessageTypeInfo::Log(LogInfo::Fatal),
+            (MessageType::Log, 0x2) => MessageTypeInfo::Log(LogInfo::Error),
+            (MessageType::Log, 0x3) => MessageTypeInfo::Log(LogInfo::Warn),
+            (MessageType::Log, 0x4) => MessageTypeInfo::Log(LogInfo::Info),
+            (MessageType::Log, 0x5) => MessageTypeInfo::Log(LogInfo::Debug),
+            (MessageType::Log, 0x6) => MessageTypeInfo::Log(LogInfo::Verbose),
+            (MessageType::AppTrace, 0x1) => MessageTypeInfo::Trace(TraceInfo::Variable),
+            (MessageType::AppTrace, 0x2) => MessageTypeInfo::Trace(TraceInfo::FunctionIn),
+            (MessageType::AppTrace, 0x3) => MessageTypeInfo::Trace(TraceInfo::FunctionOut),
+            (MessageType::AppTrace, 0x4) => MessageTypeInfo::Trace(TraceInfo::State),
+            (MessageType::AppTrace, 0x5) => MessageTypeInfo::Trace(TraceInfo::Vfb),
+            (MessageType::NwTrace, 0x1)=> MessageTypeInfo::Bus(BusInfo::Ipc),
+            (MessageType::NwTrace, 0x2)=> MessageTypeInfo::Bus(BusInfo::Can),
+            (MessageType::NwTrace, 0x3)=> MessageTypeInfo::Bus(BusInfo::Flexray),
+            (MessageType::NwTrace, 0x4)=> MessageTypeInfo::Bus(BusInfo::Most),
+            (MessageType::NwTrace, 0x5)=> MessageTypeInfo::Bus(BusInfo::Ethernet),
+            (MessageType::NwTrace, 0x6)=> MessageTypeInfo::Bus(BusInfo::SomeIP),
+            (MessageType::Control, 0x1) => MessageTypeInfo::Control(ControlInfo::Request),
+            (MessageType::Control, 0x2) => MessageTypeInfo::Control(ControlInfo::Response),
+            (message_type, info) => unreachable!("Unexpected: ({message_type:?}, {info})")
+        }
     }
 
     pub fn num_bytes(&self) -> usize {
