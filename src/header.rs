@@ -1,7 +1,7 @@
 use crate::{DltError, Result};
 use std::{str};
 
-use simdutf8::compat::from_utf8;
+use simdutf8::basic::from_utf8;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct StorageHeader<'a> {
