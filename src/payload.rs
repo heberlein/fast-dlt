@@ -2,7 +2,6 @@
 use std::{fmt::Display, marker::PhantomData};
 
 use fallible_iterator::FallibleIterator;
-use itertools::join;
 use simdutf8::compat::from_utf8;
 
 use crate::{error::Result, DltError};
