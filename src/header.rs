@@ -1,10 +1,12 @@
 use crate::{DltError, Result};
 use std::{str};
 
+use simdutf8::compat::from_utf8;
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct StorageHeader<'a> {
-    seconds: u32,
-    microseconds: i32,
+    pub seconds: u32,
+    pub microseconds: i32,
     pub ecu_id: &'a str,
 }
 impl<'a> StorageHeader<'a> {
@@ -15,7 +17,7 @@ impl<'a> StorageHeader<'a> {
         }
         let seconds = u32::from_le_bytes(buf[4..8].try_into()?);
         let microseconds = i32::from_le_bytes(buf[8..12].try_into()?);
-        let ecu_id = str::from_utf8(&buf[12..16])?;
+        let ecu_id = from_utf8(&buf[12..16])?;
         Ok(Self {
             seconds,
             microseconds,
@@ -46,11 +48,11 @@ enum StdHeaderMask {
 #[derive(Debug, PartialEq, Eq)]
 pub struct StandardHeader<'a> {
     header_type: u8,
-    message_counter: u8,
+    pub message_counter: u8,
     pub length: u16,
     pub ecu_id: Option<&'a str>,
-    session_id: Option<u32>,
-    timestamp: Option<u32>,
+    pub session_id: Option<u32>,
+    pub timestamp: Option<u32>,
 }
 
 impl<'a> StandardHeader<'a> {
@@ -67,7 +69,7 @@ impl<'a> StandardHeader<'a> {
             None
         } else {
             optionals_offset += 4;
-            Some(str::from_utf8(
+            Some(from_utf8(
                 &buf[optionals_offset..optionals_offset + 4],
             )?)
         };
@@ -176,7 +178,7 @@ pub enum BusInfo {
 pub enum ControlInfo {
     Request = 0x1,
     Response = 0x2,
-    Time = 0x3
+    // Time = 0x3 ??
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -199,11 +201,10 @@ pub struct ExtendedHeader<'a> {
 
 impl<'a> ExtendedHeader<'a> {
     pub fn new(buf: &'a [u8]) -> Result<Self> {
-
         let message_info = buf[0];
         let number_of_arguments = buf[1];
-        let application_id = str::from_utf8(&buf[2..6])?.trim_end_matches('\0');
-        let context_id = str::from_utf8(&buf[6..10])?.trim_end_matches('\0');
+        let application_id = from_utf8(&buf[2..6])?.trim_end_matches('\0');
+        let context_id = from_utf8(&buf[6..10])?.trim_end_matches('\0');
         Ok(Self {
             message_info,
             number_of_arguments,
@@ -217,7 +218,7 @@ impl<'a> ExtendedHeader<'a> {
     }
 
     pub fn message_type(&self) -> MessageType {
-        match self.message_info & 0b00001110 {
+        match (self.message_info & 0b00001110) >> 1 {
             0x0 => MessageType::Log,
             0x1 => MessageType::AppTrace,
             0x2 => MessageType::NwTrace,
@@ -228,7 +229,7 @@ impl<'a> ExtendedHeader<'a> {
     }
 
     pub fn type_info(&self) -> MessageTypeInfo {
-        match (self.message_type(), self.message_info & 0b11110000) {
+        match (self.message_type(), (self.message_info & 0b11110000) >> 4) {
             (MessageType::Log, 0x1) => MessageTypeInfo::Log(LogInfo::Fatal),
             (MessageType::Log, 0x2) => MessageTypeInfo::Log(LogInfo::Error),
             (MessageType::Log, 0x3) => MessageTypeInfo::Log(LogInfo::Warn),

@@ -8,8 +8,12 @@ edition = "2021"
 [profile.release]
 lto = "fat"
 codegen-units = 1
+debug = true
 
 [dependencies]
 thiserror = "1.0"
 fallible-iterator = "0.2.0"
 nom = "7.1.1"
+chrono = "0.4.23"
+itertools = "0.10.5"
+simdutf8 = "0.1.4"

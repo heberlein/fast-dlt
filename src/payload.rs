@@ -2,6 +2,8 @@
 use std::{fmt::Display, marker::PhantomData};
 
 use fallible_iterator::FallibleIterator;
+use itertools::join;
+use simdutf8::compat::from_utf8;
 
 use crate::{error::Result, DltError};
 #[derive(Debug)]
@@ -18,11 +20,21 @@ impl<'a> NonVerbosePayload<'a> {
     }
 
     pub fn as_str(&self) -> Result<&str> {
-        Ok(std::str::from_utf8(self.data)?)
+        Ok(from_utf8(self.data)?)
     }
 
     pub fn num_bytes(&self) -> usize {
         4 + self.data.len()
+    }
+}
+
+impl<'a> Display for NonVerbosePayload<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{:x}] ", self.message_id)?;
+        self.data
+            .iter()
+            .try_for_each(|byte| write!(f, "{byte:x}"))?;
+        Ok(())
     }
 }
 
@@ -41,6 +53,18 @@ impl<'a> VerbosePayload<'a> {
             data: self.data,
             index: 0,
         }
+    }
+}
+
+impl<'a> Display for VerbosePayload<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for arg in self.arguments() {
+            match arg {
+                Ok(arg) => write!(f, "{arg} ")?,
+                Err(_) => write!(f, "ARGERROR")?,
+            };
+        }
+        Ok(())
     }
 }
 
@@ -68,6 +92,15 @@ impl<'a> Payload<'a> {
         match self {
             Payload::NonVerbose(nv) => nv.num_bytes(),
             Payload::Verbose(_) => todo!(),
+        }
+    }
+}
+
+impl<'a> Display for Payload<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Payload::NonVerbose(nv) => write!(f, "{nv}"),
+            Payload::Verbose(v) => write!(f, "{v}"),
         }
     }
 }
@@ -174,9 +207,7 @@ impl<'a> Argument<'a> {
             x if x == ArgType::Array as u32 => todo!(),
             x if x == ArgType::String as u32 => {
                 let length = u16::from_le_bytes(buf[4..6].try_into()?);
-                Value::String(
-                    std::str::from_utf8(&buf[6..6 + length as usize])?.trim_end_matches('\0'),
-                )
+                Value::String(from_utf8(&buf[6..6 + length as usize])?.trim_end_matches('\0'))
             }
             x if x == ArgType::Raw as u32 => todo!(),
             x if x == ArgType::VariableInfo as u32 => todo!(),
@@ -195,6 +226,12 @@ impl<'a> Argument<'a> {
 
     fn num_bytes(&self) -> usize {
         4 + self.value.num_bytes()
+    }
+}
+
+impl<'a> Display for Argument<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
     }
 }
 
@@ -243,21 +280,27 @@ impl<'a> Value<'a> {
 impl<'a> Display for Value<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::Bool(_) => todo!(),
-            Value::U8(_) => todo!(),
-            Value::U16(_) => todo!(),
-            Value::U32(_) => todo!(),
-            Value::U64(_) => todo!(),
-            Value::U128(_) => todo!(),
-            Value::I8(_) => todo!(),
-            Value::I16(_) => todo!(),
-            Value::I32(_) => todo!(),
-            Value::I64(_) => todo!(),
-            Value::I128(_) => todo!(),
-            Value::F32(_) => todo!(),
-            Value::F64(_) => todo!(),
-            Value::String(_) => todo!(),
-            Value::Raw(_) => todo!(),
+            Value::Bool(b) => write!(f, "{b}"),
+            Value::U8(u) => write!(f, "{u}"),
+            Value::U16(u) => write!(f, "{u}"),
+            Value::U32(u) => write!(f, "{u}"),
+            Value::U64(u) => write!(f, "{u}"),
+            Value::U128(u) => write!(f, "{u}"),
+            Value::I8(i) => write!(f, "{i}"),
+            Value::I16(i) => write!(f, "{i}"),
+            Value::I32(i) => write!(f, "{i}"),
+            Value::I64(i) => write!(f, "{i}"),
+            Value::I128(i) => write!(f, "{i}"),
+            Value::F32(fl) => write!(f, "{fl}"),
+            Value::F64(fl) => write!(f, "{fl}"),
+            Value::String(s) => write!(f, "{s}"),
+            Value::Raw(r) => write!(
+                f,
+                "{}",
+                r.iter()
+                    .map(|byte| format!("{byte:x?}"))
+                    .collect::<String>()
+            ),
         }
     }
 }
