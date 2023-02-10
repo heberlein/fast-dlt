@@ -4,44 +4,7 @@ use thiserror::Error;
 
 use crate::{error, DltMessage};
 
-#[derive(Debug)]
-pub struct DltFilter {
-    ecu_id: Option<String>,
-    application_id: Option<String>,
-    context_id: Option<String>,
-}
-
-impl DltFilter {
-    pub fn new() -> Self {
-        Self {
-            ecu_id: None,
-            application_id: None,
-            context_id: None,
-        }
-    }
-
-    pub fn with_ecu_id(mut self, ecu_id: String) -> Self {
-        self.ecu_id = Some(ecu_id);
-        self
-    }
-
-    pub fn with_application_id(mut self, application_id: String) -> Self {
-        self.application_id = Some(application_id);
-        self
-    }
-
-    pub fn with_context_id(mut self, context_id: String) -> Self {
-        self.context_id = Some(context_id);
-        self
-    }
-}
-
-impl Default for DltFilter {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
+#[derive(Debug, Clone)]
 pub enum Filter {
     Ecu {
         ecu_id: String,
@@ -91,11 +54,11 @@ impl FromStr for Filter {
 impl Display for Filter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Filter::Ecu { ecu_id } => write!(f, "ecu == \"{}\"", ecu_id),
-            Filter::App { app_id } => write!(f, "app == \"{}\"", app_id),
-            Filter::Ctx { ctx_id } => write!(f, "ctx == \"{}\"", ctx_id),
-            Filter::And { left, right } => write!(f, "({}) && ({})", left, right),
-            Filter::Or { left, right } => write!(f, "({}) || ({})", left, right),
+            Filter::Ecu { ecu_id } => write!(f, "ecu == \"{ecu_id}\""),
+            Filter::App { app_id } => write!(f, "app == \"{app_id}\""),
+            Filter::Ctx { ctx_id } => write!(f, "ctx == \"{ctx_id}\""),
+            Filter::And { left, right } => write!(f, "({left}) && ({right})"),
+            Filter::Or { left, right } => write!(f, "({left}) || ({right})"),
         }
     }
 }
@@ -128,26 +91,23 @@ mod test {
     #[test]
     fn parse_ecu_filter() {
         let filter: Filter = "ecu == \"TEST\"".parse().unwrap();
-        assert_eq!(format!("{}", filter), "ecu == \"TEST\"")
+        assert_eq!(format!("{filter}"), "ecu == \"TEST\"")
     }
     #[test]
     fn parse_app_filter() {
         let filter: Filter = "app == \"TEST\"".parse().unwrap();
-        assert_eq!(format!("{}", filter), "app == \"TEST\"")
+        assert_eq!(format!("{filter}"), "app == \"TEST\"")
     }
     #[test]
     fn parse_ctx_filter() {
         let filter: Filter = "ctx == \"TEST\"".parse().unwrap();
-        assert_eq!(format!("{}", filter), "ctx == \"TEST\"")
+        assert_eq!(format!("{filter}"), "ctx == \"TEST\"")
     }
 
     #[test]
     fn parse_and_filter() {
         let filter: Filter = "ecu == \"ECU\" && app == \"APP\"".parse().unwrap();
-        assert_eq!(
-            format!("{}", filter),
-            "(ecu == \"ECU\") && (app == \"APP\")"
-        )
+        assert_eq!(format!("{filter}"), "(ecu == \"ECU\") && (app == \"APP\")")
     }
 
     #[test]
@@ -156,7 +116,7 @@ mod test {
             .parse()
             .unwrap();
         assert_eq!(
-            format!("{}", filter),
+            format!("{filter}"),
             "((ecu == \"ECU\") && (app == \"APP\")) && (ctx == \"CTX\")"
         )
     }
@@ -164,10 +124,7 @@ mod test {
     #[test]
     fn parse_or_filter() {
         let filter: Filter = "ecu == \"ECU\" || app == \"APP\"".parse().unwrap();
-        assert_eq!(
-            format!("{}", filter),
-            "(ecu == \"ECU\") || (app == \"APP\")"
-        )
+        assert_eq!(format!("{filter}"), "(ecu == \"ECU\") || (app == \"APP\")")
     }
 
     #[test]
@@ -176,7 +133,7 @@ mod test {
             .parse()
             .unwrap();
         assert_eq!(
-            format!("{}", filter),
+            format!("{filter}"),
             "((ecu == \"ECU\") || (app == \"APP\")) || (ctx == \"CTX\")"
         )
     }
