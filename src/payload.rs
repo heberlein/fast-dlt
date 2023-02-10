@@ -39,7 +39,7 @@ impl<'a> Display for NonVerbosePayload<'a> {
 
 #[derive(Debug)]
 pub struct VerbosePayload<'a> {
-    data: &'a [u8], // TODO: temporary hack
+    data: &'a [u8],
 }
 
 impl<'a> VerbosePayload<'a> {
@@ -202,13 +202,24 @@ impl<'a> Argument<'a> {
                 0x05 => Value::U128(u128::from_le_bytes(buf[4..20].try_into()?)),
                 _ => unreachable!(),
             },
-            x if x == ArgType::Float as u32 => todo!(),
+            x if x == ArgType::Float as u32 => match type_length {
+                0x01 => unimplemented!(),
+                0x02 => unimplemented!(),
+                0x03 => Value::F32(f32::from_le_bytes(buf[4..8].try_into()?)),
+                0x04 => Value::F64(f64::from_le_bytes(buf[4..12].try_into()?)),
+                0x05 => unimplemented!(),
+                _ => unreachable!(),
+            },
+
             x if x == ArgType::Array as u32 => todo!(),
             x if x == ArgType::String as u32 => {
                 let length = u16::from_le_bytes(buf[4..6].try_into()?);
                 Value::String(from_utf8(&buf[6..6 + length as usize])?.trim_end_matches('\0'))
             }
-            x if x == ArgType::Raw as u32 => todo!(),
+            x if x == ArgType::Raw as u32 => {
+                let length = u16::from_le_bytes(buf[4..6].try_into()?);
+                Value::Raw(&buf[6..6 + length as usize])
+            }
             x if x == ArgType::VariableInfo as u32 => todo!(),
             x if x == ArgType::FixedPoint as u32 => todo!(),
             x if x == ArgType::TraceInfo as u32 => todo!(),
