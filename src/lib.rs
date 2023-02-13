@@ -5,22 +5,11 @@
 // https://www.autosar.org/fileadmin/standards/foundation/20-11/AUTOSAR_PRS_LogAndTraceProtocol.pdf
 
 #![warn(missing_debug_implementations, rust_2018_idioms)]
-mod error;
-pub use crate::error::*;
-
-mod header;
-pub use crate::header::*;
-
-mod message;
-pub use crate::message::*;
-
-mod payload;
-pub use crate::payload::*;
-
-mod file;
-pub use crate::file::*;
-
-mod filter;
-pub use crate::filter::*;
+pub mod error;
+pub mod file;
+pub mod filter;
+pub mod header;
+pub mod message;
+pub mod payload;
 
 // TODO: use Cow<'a, str> everywhere?

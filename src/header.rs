@@ -1,4 +1,4 @@
-use crate::{DltError, Result};
+use crate::{error::DltError, error::Result};
 use std::{str};
 
 use simdutf8::basic::from_utf8;
@@ -11,7 +11,11 @@ pub struct StorageHeader<'a> {
 }
 impl<'a> StorageHeader<'a> {
     pub fn new(buf: &'a [u8]) -> Result<Self> {
-        // TODO: check if buf is long enough  once, return error if not
+
+        if buf.len() < 4 + 4 + 4 + 4 {
+            return Err(DltError::NotEnoughData)
+        }
+
         if &buf[..4] != b"DLT\x01" {
             return Err(DltError::MissingDltPattern);
         }
@@ -57,15 +61,26 @@ pub struct StandardHeader<'a> {
 
 impl<'a> StandardHeader<'a> {
     pub fn new(buf: &'a [u8]) -> Result<Self> {
-        // TODO: check if buf is long enough  once, return error if not
-        let header_type = buf[0];
+        let Some(header_type) = buf.first() else {
+            return Err(DltError::NotEnoughData)
+        };
+
+        let with_ecu_id = header_type & StdHeaderMask::WithEcuId as u8 == 0;
+        let with_session_id = header_type & StdHeaderMask::WithSessionId as u8 == 0;
+        let with_timestamp = header_type & StdHeaderMask::WithTimestamp as u8 == 0;
+
+        let min_size = 1+1 + 2 + with_ecu_id as usize * 4 + with_session_id as usize * 4 + with_timestamp as usize * 4;
+        if buf.len() < min_size {
+            return Err(DltError::NotEnoughData)
+        }
+
         let message_counter = buf[1];
 
         // use mem::transmute to convert to [u8;2]? only if todo is implemented
         let length = u16::from_be_bytes(buf[2..4].try_into()?);
 
         let mut optionals_offset = 0;
-        let ecu_id = if header_type & StdHeaderMask::WithEcuId as u8 == 0 {
+        let ecu_id = if with_ecu_id {
             None
         } else {
             optionals_offset += 4;
@@ -73,7 +88,7 @@ impl<'a> StandardHeader<'a> {
                 &buf[optionals_offset..optionals_offset + 4],
             )?.trim_end_matches('\0'))
         };
-        let session_id = if header_type & StdHeaderMask::WithSessionId as u8 == 0 {
+        let session_id = if with_session_id {
             None
         } else {
             optionals_offset += 4;
@@ -81,7 +96,7 @@ impl<'a> StandardHeader<'a> {
                 buf[optionals_offset..optionals_offset + 4].try_into()?,
             ))
         };
-        let timestamp = if header_type & StdHeaderMask::WithTimestamp as u8 == 0 {
+        let timestamp = if with_timestamp {
             None
         } else {
             optionals_offset += 4;
@@ -91,7 +106,7 @@ impl<'a> StandardHeader<'a> {
         };
 
         Ok(Self {
-            header_type,
+            header_type: *header_type,
             message_counter,
             length,
             ecu_id,
@@ -201,6 +216,10 @@ pub struct ExtendedHeader<'a> {
 
 impl<'a> ExtendedHeader<'a> {
     pub fn new(buf: &'a [u8]) -> Result<Self> {
+        if buf.len() < 1 + 1 + 4 + 4 {
+            return Err(DltError::NotEnoughData)
+        }
+
         let message_info = buf[0];
         let number_of_arguments = buf[1];
         let application_id = from_utf8(&buf[2..6])?.trim_end_matches('\0');

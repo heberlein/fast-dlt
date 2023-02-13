@@ -2,7 +2,7 @@ use std::{fmt::Display, str::FromStr};
 
 use thiserror::Error;
 
-use crate::DltMessage;
+use crate::message::DltMessage;
 
 #[derive(Debug, Clone)]
 pub enum Filter {

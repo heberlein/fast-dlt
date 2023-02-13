@@ -1,6 +1,8 @@
 use fallible_iterator::FallibleIterator;
 
-use crate::{DltError, DltMessage, Result};
+use crate::message::DltMessage;
+
+use crate::{error::DltError, error::Result};
 
 const MIN_MESSAGE_LENGTH: usize = 16 /*Storage Header*/ + 4 /*Smallest Standard Header, no Extended Header */;
 #[derive(Debug)]

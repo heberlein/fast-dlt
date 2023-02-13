@@ -1,7 +1,7 @@
 use std::{error::Error, path::PathBuf};
 
 use fallible_iterator::FallibleIterator;
-use fast_dlt::DltFile;
+use fast_dlt::file::DltFile;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let Some(path) = std::env::args().nth(1).map(PathBuf::from) else {

@@ -4,7 +4,7 @@ use std::{fmt::Display, marker::PhantomData};
 use fallible_iterator::FallibleIterator;
 use simdutf8::basic::from_utf8;
 
-use crate::{error::Result, DltError};
+use crate::{error::DltError, error::Result};
 #[derive(Debug)]
 pub struct NonVerbosePayload<'a> {
     message_id: u32,

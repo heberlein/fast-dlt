@@ -4,6 +4,8 @@ use thiserror::Error;
 pub enum DltError {
     #[error("Missing DLT pattern!")]
     MissingDltPattern,
+    #[error("Not enough data!")]
+    NotEnoughData,
     #[error("Invalid UTF-8 string!")]
     BadUTF8(#[from] simdutf8::basic::Utf8Error),
     #[error("Failed to convert slice!")]

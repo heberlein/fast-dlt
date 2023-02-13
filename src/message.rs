@@ -5,8 +5,12 @@ use std::fmt::Display;
 use chrono::{TimeZone, Utc};
 
 use crate::{
-    BusInfo, ControlInfo, ExtendedHeader, LogInfo, MessageTypeInfo, NonVerbosePayload, Payload,
-    Result, StandardHeader, StorageHeader, TraceInfo, VerbosePayload,
+    error::Result,
+    header::{
+        BusInfo, ControlInfo, ExtendedHeader, LogInfo, MessageTypeInfo, StandardHeader,
+        StorageHeader, TraceInfo,
+    },
+    payload::{NonVerbosePayload, Payload, VerbosePayload},
 };
 
 #[derive(Debug)]
