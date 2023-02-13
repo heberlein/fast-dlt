@@ -33,7 +33,10 @@ impl<'a> DltMessage<'a> {
         };
         let payload_end = standard_header.length as usize + storage_header.num_bytes();
         let payload = if extended_header.as_ref().map_or(false, |hdr| hdr.verbose()) {
-            Payload::Verbose(VerbosePayload::new(&buf[offset..payload_end]))
+            Payload::Verbose(VerbosePayload::new(
+                &buf[offset..payload_end],
+                standard_header.msb_first(),
+            ))
         } else {
             Payload::NonVerbose(NonVerbosePayload::new(&buf[offset..payload_end])?)
         };

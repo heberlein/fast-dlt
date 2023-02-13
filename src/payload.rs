@@ -40,17 +40,22 @@ impl<'a> Display for NonVerbosePayload<'a> {
 #[derive(Debug)]
 pub struct VerbosePayload<'a> {
     data: &'a [u8],
+    msb_first: bool,
 }
 
 impl<'a> VerbosePayload<'a> {
-    pub fn new(buf: &'a [u8]) -> Self {
-        Self { data: buf }
+    pub fn new(buf: &'a [u8], msb_first: bool) -> Self {
+        Self {
+            data: buf,
+            msb_first,
+        }
     }
 
     pub fn arguments(&self) -> Arguments<'a> {
         Arguments {
             data: self.data,
             index: 0,
+            msb_first: self.msb_first,
         }
     }
 
@@ -147,6 +152,7 @@ enum TypeInfo {
 pub struct Arguments<'a> {
     data: &'a [u8],
     index: usize,
+    msb_first: bool,
 }
 
 impl<'a> FallibleIterator for Arguments<'a> {
@@ -157,7 +163,7 @@ impl<'a> FallibleIterator for Arguments<'a> {
         if self.index >= self.data.len() {
             return Ok(None);
         }
-        let arg = Argument::new(&self.data[self.index..])?;
+        let arg = Argument::new(&self.data[self.index..], self.msb_first)?;
         self.index += arg.num_bytes();
         Ok(Some(arg))
     }
@@ -182,7 +188,17 @@ pub struct Argument<'a> {
 }
 
 impl<'a> Argument<'a> {
-    fn new(buf: &'a [u8]) -> Result<Argument<'_>> {
+    fn new(buf: &'a [u8], msb_first: bool) -> Result<Argument<'_>> {
+        macro_rules! parse_value {
+            ($type: ty,  $slice: expr) => {
+                if msb_first {
+                    <$type>::from_be_bytes($slice.try_into()?)
+                } else {
+                    <$type>::from_le_bytes($slice.try_into()?)
+                }
+            };
+        }
+
         let type_info = u32::from_le_bytes(buf[0..4].try_into()?);
         let var_info = (); // TODO
         let type_length = type_info & TypeInfoMask::Length as u32;
@@ -192,36 +208,36 @@ impl<'a> Argument<'a> {
             x if x == ArgType::Bool as u32 => Value::Bool(buf[0] != 0),
             x if x == ArgType::Signed as u32 => match type_length {
                 0x01 => Value::I8(buf[0] as i8),
-                0x02 => Value::I16(i16::from_le_bytes(buf[4..6].try_into()?)),
-                0x03 => Value::I32(i32::from_le_bytes(buf[4..8].try_into()?)),
-                0x04 => Value::I64(i64::from_le_bytes(buf[4..12].try_into()?)),
-                0x05 => Value::I128(i128::from_le_bytes(buf[4..20].try_into()?)),
+                0x02 => Value::I16(parse_value!(i16, buf[4..6])),
+                0x03 => Value::I32(parse_value!(i32, buf[4..8])),
+                0x04 => Value::I64(parse_value!(i64, buf[4..12])),
+                0x05 => Value::I128(parse_value!(i128, buf[4..20])),
                 _ => unreachable!(),
             },
             x if x == ArgType::Unsigned as u32 => match type_length {
                 0x01 => Value::U8(buf[0]),
-                0x02 => Value::U16(u16::from_le_bytes(buf[4..6].try_into()?)),
-                0x03 => Value::U32(u32::from_le_bytes(buf[4..8].try_into()?)),
-                0x04 => Value::U64(u64::from_le_bytes(buf[4..12].try_into()?)),
-                0x05 => Value::U128(u128::from_le_bytes(buf[4..20].try_into()?)),
+                0x02 => Value::U16(parse_value!(u16, buf[4..6])),
+                0x03 => Value::U32(parse_value!(u32, buf[4..8])),
+                0x04 => Value::U64(parse_value!(u64, buf[4..12])),
+                0x05 => Value::U128(parse_value!(u128, buf[4..20])),
                 _ => unreachable!(),
             },
             x if x == ArgType::Float as u32 => match type_length {
                 0x01 => unimplemented!(),
                 0x02 => unimplemented!(),
-                0x03 => Value::F32(f32::from_le_bytes(buf[4..8].try_into()?)),
-                0x04 => Value::F64(f64::from_le_bytes(buf[4..12].try_into()?)),
+                0x03 => Value::F32(parse_value!(f32, buf[4..8])),
+                0x04 => Value::F64(parse_value!(f64, buf[4..12])),
                 0x05 => unimplemented!(),
                 _ => unreachable!(),
             },
 
             x if x == ArgType::Array as u32 => todo!(),
             x if x == ArgType::String as u32 => {
-                let length = u16::from_le_bytes(buf[4..6].try_into()?);
+                let length = parse_value!(u16, buf[4..6]);
                 Value::String(from_utf8(&buf[6..6 + length as usize])?.trim_end_matches('\0'))
             }
             x if x == ArgType::Raw as u32 => {
-                let length = u16::from_le_bytes(buf[4..6].try_into()?);
+                let length = parse_value!(u16, buf[4..6]);
                 Value::Raw(&buf[6..6 + length as usize])
             }
             x if x == ArgType::VariableInfo as u32 => todo!(),
