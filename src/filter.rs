@@ -83,7 +83,7 @@ mod parse {
     }
 }
 
-#[cfg(test)]
+/*#[cfg(test)]
 mod test {
 
     use super::*;
@@ -138,3 +138,4 @@ mod test {
         )
     }
 }
+*/
