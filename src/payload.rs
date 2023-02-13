@@ -19,7 +19,7 @@ impl<'a> NonVerbosePayload<'a> {
     }
 
     pub fn as_str(&self) -> Result<&str> {
-        Ok(from_utf8(self.data)?)
+        Ok(from_utf8(self.data)?.trim_end_matches('\0'))
     }
 
     pub fn num_bytes(&self) -> usize {
@@ -52,6 +52,10 @@ impl<'a> VerbosePayload<'a> {
             data: self.data,
             index: 0,
         }
+    }
+
+    pub fn num_bytes(&self) -> usize {
+        self.data.len()
     }
 }
 
@@ -90,7 +94,7 @@ impl<'a> Payload<'a> {
     pub fn num_bytes(&self) -> usize {
         match self {
             Payload::NonVerbose(nv) => nv.num_bytes(),
-            Payload::Verbose(_) => todo!(),
+            Payload::Verbose(v) => v.num_bytes(),
         }
     }
 }
@@ -185,7 +189,7 @@ impl<'a> Argument<'a> {
         let r#type = type_info & TypeInfoMask::Type as u32;
 
         let value = match r#type {
-            x if x == ArgType::Bool as u32 => todo!(),
+            x if x == ArgType::Bool as u32 => Value::Bool(buf[0] != 0),
             x if x == ArgType::Signed as u32 => match type_length {
                 0x01 => Value::I8(buf[0] as i8),
                 0x02 => Value::I16(i16::from_le_bytes(buf[4..6].try_into()?)),
@@ -224,7 +228,7 @@ impl<'a> Argument<'a> {
             x if x == ArgType::FixedPoint as u32 => todo!(),
             x if x == ArgType::TraceInfo as u32 => todo!(),
             x if x == ArgType::Struct as u32 => todo!(),
-            _ => unreachable!(),
+            x => unreachable!("{x:x}"),
         };
         Ok(Argument {
             type_info,
@@ -268,25 +272,18 @@ pub enum Value<'a> {
 impl<'a> Value<'a> {
     fn num_bytes(&self) -> usize {
         match self {
-            Value::Bool(_) => 1,
-            Value::U8(_) => 1,
-            Value::U16(_) => 2,
-            Value::U32(_) => 4,
-            Value::U64(_) => 8,
-            Value::U128(_) => 16,
-            Value::I8(_) => 1,
-            Value::I16(_) => 2,
-            Value::I32(_) => 4,
-            Value::I64(_) => 8,
-            Value::I128(_) => 16,
-            Value::F32(_) => 4,
-            Value::F64(_) => 8,
+            Value::U8(_) | Value::I8(_) | Value::Bool(_) => 1,
+            Value::U16(_) | Value::I16(_) => 2,
+            Value::U32(_) | Value::I32(_) | Value::F32(_) => 4,
+            Value::U64(_) | Value::I64(_) | Value::F64(_) => 8,
+            Value::U128(_) | Value::I128(_) => 16,
             Value::String(s) => s.len() + 1 + 2, /*length of string is u16*/
-            Value::Raw(r) => r.len(),
+            Value::Raw(r) => r.len() + 2,        /*length of raw is u16*/
         }
     }
 }
 
+// NOTE: use https://crates.io/crates/fixed for fixed point values?
 impl<'a> Display for Value<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

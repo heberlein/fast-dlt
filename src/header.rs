@@ -17,7 +17,7 @@ impl<'a> StorageHeader<'a> {
         }
         let seconds = u32::from_le_bytes(buf[4..8].try_into()?);
         let microseconds = i32::from_le_bytes(buf[8..12].try_into()?);
-        let ecu_id = from_utf8(&buf[12..16])?;
+        let ecu_id = from_utf8(&buf[12..16])?.trim_end_matches('\0');
         Ok(Self {
             seconds,
             microseconds,
@@ -71,7 +71,7 @@ impl<'a> StandardHeader<'a> {
             optionals_offset += 4;
             Some(from_utf8(
                 &buf[optionals_offset..optionals_offset + 4],
-            )?)
+            )?.trim_end_matches('\0'))
         };
         let session_id = if header_type & StdHeaderMask::WithSessionId as u8 == 0 {
             None
