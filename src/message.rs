@@ -58,9 +58,10 @@ impl<'a> Display for DltMessage<'a> {
         write!(
             f,
             "{}.{:0<6} ",
+            // This is unfortunately really slow, ~50% of cpu time in this function is just this
             Utc.timestamp_millis_opt(self.storage_header.seconds as i64 * 1000)
-                .unwrap()
-                .format("%Y/%m/%d %H:%M:%S"),
+                .map(|dt| dt.format("%Y/%m/%d %H:%M:%S"))
+                .unwrap(),
             self.storage_header.microseconds
         )?;
 
@@ -68,7 +69,7 @@ impl<'a> Display for DltMessage<'a> {
             write!(f, "{}.{:0>4} ", timestamp / 10000, timestamp % 10000)?;
         }
 
-        write!(f, "{:0<3} ", self.standard_header.message_counter)?;
+        write!(f, "{:0>3} ", self.standard_header.message_counter)?;
 
         if let Some(ecu_id) = self.standard_header.ecu_id {
             write!(f, "{ecu_id} ")?;
