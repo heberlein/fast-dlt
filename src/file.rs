@@ -1,4 +1,4 @@
-use fallible_iterator::{FallibleIterator, Iterator};
+use fallible_iterator::FallibleIterator;
 
 use crate::{DltError, DltMessage, Result};
 
