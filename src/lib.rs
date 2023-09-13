@@ -7,7 +7,6 @@
 #![warn(missing_debug_implementations, rust_2018_idioms)]
 pub mod error;
 pub mod file;
-pub mod filter;
 pub mod header;
 pub mod message;
 pub mod payload;
