@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let elapsed = start.elapsed();
 
     println!(
-        "Parsed {count} messages in {:.2} ({:.2} per second, {:.2} MiB/s)",
+        "Parsed {count} messages in {:.3}s ({:.2} per second, {:.2} MiB/s)",
         elapsed.as_secs_f32(),
         count as f64 / elapsed.as_secs_f64(),
         (data.len() as f64 / f64::from(1024 * 1024) / elapsed.as_secs_f64())
