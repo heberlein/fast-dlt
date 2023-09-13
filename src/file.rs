@@ -45,10 +45,3 @@ impl<'a> FallibleIterator for DltFile<'a> {
         (0, Some(self.buf[self.offset..].len() / MIN_MESSAGE_LENGTH))
     }
 }
-
-#[allow(unused)]
-struct AllMessages {}
-#[allow(unused)]
-struct WithEcuId {}
-#[allow(unused)]
-struct WithAppId {}
