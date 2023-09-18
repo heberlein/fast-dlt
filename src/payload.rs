@@ -4,7 +4,10 @@ use std::{fmt::Display, marker::PhantomData};
 use fallible_iterator::FallibleIterator;
 use simdutf8::basic::from_utf8;
 
-use crate::{error::DltError, error::Result};
+use crate::{
+    error::FatalError,
+    error::{ParseError, Result},
+};
 #[derive(Debug)]
 pub struct NonVerbosePayload<'a> {
     message_id: u32,
@@ -157,7 +160,7 @@ pub struct Arguments<'a> {
 
 impl<'a> FallibleIterator for Arguments<'a> {
     type Item = Argument<'a>;
-    type Error = DltError;
+    type Error = ParseError;
 
     fn next(&mut self) -> Result<Option<Argument<'a>>> {
         if self.index >= self.data.len() {

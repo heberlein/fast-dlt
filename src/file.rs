@@ -1,8 +1,9 @@
 use fallible_iterator::FallibleIterator;
 
+use crate::error::ParseError;
 use crate::message::DltMessage;
 
-use crate::{error::DltError, error::Result};
+use crate::error::Result;
 
 const MIN_MESSAGE_LENGTH: usize = 16 /*Storage Header*/ + 4 /*Smallest Standard Header, no Extended Header */;
 #[derive(Debug)]
@@ -29,7 +30,7 @@ impl<'a> IntoIterator for DltFile<'a> {
 
 impl<'a> FallibleIterator for DltFile<'a> {
     type Item = DltMessage<'a>;
-    type Error = DltError;
+    type Error = ParseError;
 
     fn next(&mut self) -> Result<Option<DltMessage<'a>>> {
         if self.offset >= self.buf.len() {

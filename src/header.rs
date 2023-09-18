@@ -1,5 +1,5 @@
-use crate::{error::DltError, error::Result};
-use std::{str};
+use crate::{error::FatalError, error::{Result, ParseError}};
+use std::str;
 
 use simdutf8::basic::from_utf8;
 
@@ -13,11 +13,11 @@ impl<'a> StorageHeader<'a> {
     pub fn new(buf: &'a [u8]) -> Result<Self> {
 
         if buf.len() < 4 + 4 + 4 + 4 {
-            return Err(DltError::NotEnoughData)
+            return Err(ParseError::Fatal(FatalError::NotEnoughData))
         }
 
         if &buf[..4] != b"DLT\x01" {
-            return Err(DltError::MissingDltPattern);
+            return Err(ParseError::Fatal(FatalError::MissingDltPattern));
         }
         let seconds = u32::from_le_bytes(buf[4..8].try_into()?);
         let microseconds = i32::from_le_bytes(buf[8..12].try_into()?);
@@ -62,7 +62,7 @@ pub struct StandardHeader<'a> {
 impl<'a> StandardHeader<'a> {
     pub fn new(buf: &'a [u8]) -> Result<Self> {
         let Some(header_type) = buf.first() else {
-            return Err(DltError::NotEnoughData)
+            return Err(FatalError::NotEnoughData.into())
         };
 
         let with_ecu_id = header_type & StdHeaderMask::WithEcuId as u8 == 0;
@@ -71,7 +71,7 @@ impl<'a> StandardHeader<'a> {
 
         let min_size = 1+1 + 2 + with_ecu_id as usize * 4 + with_session_id as usize * 4 + with_timestamp as usize * 4;
         if buf.len() < min_size {
-            return Err(DltError::NotEnoughData)
+            return Err(FatalError::NotEnoughData.into())
         }
 
         let message_counter = buf[1];
@@ -217,7 +217,7 @@ pub struct ExtendedHeader<'a> {
 impl<'a> ExtendedHeader<'a> {
     pub fn new(buf: &'a [u8]) -> Result<Self> {
         if buf.len() < 1 + 1 + 4 + 4 {
-            return Err(DltError::NotEnoughData)
+            return Err(FatalError::NotEnoughData.into())
         }
 
         let message_info = buf[0];
