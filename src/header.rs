@@ -10,6 +10,12 @@ pub struct StorageHeader<'a> {
     pub ecu_id: &'a str,
 }
 impl<'a> StorageHeader<'a> {
+
+    /// Parse an extended header at `buf[index]`
+    // TODO: similar methods everywhere
+    pub fn parse_at(index: usize, buf: &'a [u8]) -> Result<Self> {todo!()}
+
+
     pub fn new(buf: &'a [u8]) -> Result<Self> {
 
         if buf.len() < 4 + 4 + 4 + 4 {
@@ -60,6 +66,11 @@ pub struct StandardHeader<'a> {
 }
 
 impl<'a> StandardHeader<'a> {
+
+    /// Parse an extended header at `buf[index]`
+    // TODO: similar methods everywhere
+    pub fn parse_at(index: usize, buf: &'a [u8]) -> Result<Self> {todo!()}
+
     pub fn new(buf: &'a [u8]) -> Result<Self> {
         let Some(header_type) = buf.first() else {
             return Err(FatalError::NotEnoughData.into())
@@ -215,6 +226,12 @@ pub struct ExtendedHeader<'a> {
 }
 
 impl<'a> ExtendedHeader<'a> {
+
+    /// Parse an extended header at `buf[index]`
+    // TODO: similar methods everywhere
+    pub fn parse_at(index: usize, buf: &'a [u8]) -> Result<Self> {todo!()}
+
+
     pub fn new(buf: &'a [u8]) -> Result<Self> {
         if buf.len() < 1 + 1 + 4 + 4 {
             return Err(FatalError::NotEnoughData.into())

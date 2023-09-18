@@ -22,6 +22,12 @@ pub struct DltMessage<'a> {
 }
 
 impl<'a> DltMessage<'a> {
+    /// Parse an extended header at `buf[index]`
+    // TODO: similar methods everywhere
+    pub fn parse_at(index: usize, buf: &'a [u8]) -> Result<Self> {
+        todo!()
+    }
+
     pub fn new(buf: &'a [u8]) -> Result<Self> {
         let mut offset = 0;
         let storage_header = StorageHeader::new(buf)?;
