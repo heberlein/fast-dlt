@@ -35,7 +35,7 @@ impl<'a> StorageHeader<'a> {
         })
     }
 
-    pub fn num_bytes(&self) -> usize {
+    pub fn len(&self) -> usize {
         4 /*DLT pattern*/ 
         + 4 /*seconds*/ 
         + 4 /*microseconds*/ 
@@ -149,7 +149,7 @@ impl<'a> StandardHeader<'a> {
         self.header_type & StdHeaderMask::MsbFirst as u8 != 0
     }
 
-    pub fn num_bytes(&self) -> usize {
+    pub fn len(&self) -> usize {
         1 /*header type*/
         + 1 /*message_counter */
         + 2 /*length */
@@ -289,7 +289,7 @@ impl<'a> ExtendedHeader<'a> {
         }
     }
 
-    pub fn num_bytes(&self) -> usize {
+    pub fn len(&self) -> usize {
         1 /*message_info*/
         + 1 /*number_of_arguments*/
         + 4 /*application_id*/

@@ -25,7 +25,7 @@ impl<'a> NonVerbosePayload<'a> {
         Ok(from_utf8(self.data)?.trim_end_matches('\0'))
     }
 
-    pub fn num_bytes(&self) -> usize {
+    pub fn len(&self) -> usize {
         4 + self.data.len()
     }
 }
@@ -62,7 +62,7 @@ impl<'a> VerbosePayload<'a> {
         }
     }
 
-    pub fn num_bytes(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.data.len()
     }
 }
@@ -99,10 +99,10 @@ impl<'a> Payload<'a> {
         }
     }
 
-    pub fn num_bytes(&self) -> usize {
+    pub fn len(&self) -> usize {
         match self {
-            Payload::NonVerbose(nv) => nv.num_bytes(),
-            Payload::Verbose(v) => v.num_bytes(),
+            Payload::NonVerbose(nv) => nv.len(),
+            Payload::Verbose(v) => v.len(),
         }
     }
 }
@@ -167,7 +167,7 @@ impl<'a> FallibleIterator for Arguments<'a> {
             return Ok(None);
         }
         let arg = Argument::new(&self.data[self.index..], self.msb_first)?;
-        self.index += arg.num_bytes();
+        self.index += arg.len();
         Ok(Some(arg))
     }
 }
@@ -257,8 +257,8 @@ impl<'a> Argument<'a> {
         })
     }
 
-    fn num_bytes(&self) -> usize {
-        4 + self.value.num_bytes()
+    fn len(&self) -> usize {
+        4 + self.value.len()
     }
 }
 
@@ -289,7 +289,7 @@ pub enum Value<'a> {
 }
 
 impl<'a> Value<'a> {
-    fn num_bytes(&self) -> usize {
+    fn len(&self) -> usize {
         match self {
             Value::U8(_) | Value::I8(_) | Value::Bool(_) => 1,
             Value::U16(_) | Value::I16(_) => 2,

@@ -31,17 +31,17 @@ impl<'a> DltMessage<'a> {
     pub fn new(buf: &'a [u8]) -> Result<Self> {
         let mut offset = 0;
         let storage_header = StorageHeader::new(buf)?;
-        offset += storage_header.num_bytes();
+        offset += storage_header.len();
         let standard_header = StandardHeader::new(&buf[offset..])?;
-        offset += standard_header.num_bytes();
+        offset += standard_header.len();
         let extended_header = if standard_header.use_extended_header() {
             let extended_header = ExtendedHeader::new(&buf[offset..])?;
-            offset += extended_header.num_bytes();
+            offset += extended_header.len();
             Some(extended_header)
         } else {
             None
         };
-        let payload_end = standard_header.length as usize + storage_header.num_bytes();
+        let payload_end = standard_header.length as usize + storage_header.len();
         let payload = if extended_header.as_ref().map_or(false, |hdr| hdr.verbose()) {
             Payload::Verbose(VerbosePayload::new(
                 &buf[offset..payload_end],
@@ -61,8 +61,8 @@ impl<'a> DltMessage<'a> {
         Ok(msg)
     }
 
-    pub fn num_bytes(&self) -> usize {
-        self.storage_header.num_bytes() + self.standard_header.length as usize
+    pub fn len(&self) -> usize {
+        self.storage_header.len() + self.standard_header.length as usize
     }
 }
 

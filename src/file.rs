@@ -37,7 +37,7 @@ impl<'a> FallibleIterator for DltFile<'a> {
             Ok(None)
         } else {
             let message = DltMessage::new(&self.buf[self.offset..])?;
-            self.offset += message.num_bytes();
+            self.offset += message.len();
             Ok(Some(message))
         }
     }
