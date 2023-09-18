@@ -320,13 +320,7 @@ impl<'a> Display for Value<'a> {
             Value::F32(fl) => write!(f, "{fl}"),
             Value::F64(fl) => write!(f, "{fl}"),
             Value::String(s) => write!(f, "{s}"),
-            Value::Raw(r) => write!(
-                f,
-                "{}",
-                r.iter()
-                    .map(|byte| format!("{byte:x?}"))
-                    .collect::<String>()
-            ),
+            Value::Raw(r) => r.iter().try_for_each(|byte| write!(f, "{byte:x?}")),
         }
     }
 }
