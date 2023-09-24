@@ -21,7 +21,10 @@ impl<'a> NonVerbosePayload<'a> {
         }
 
         if index + length > buf.len() {
-            return Err(ParseError::NotEnoughData);
+            return Err(ParseError::NotEnoughData {
+                needed: index + length,
+                available: buf.len(),
+            });
         }
 
         let message_id = u32::from_be_bytes(buf[0..4].try_into().unwrap());

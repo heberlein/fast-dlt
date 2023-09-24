@@ -60,7 +60,7 @@ pub enum ParseError {
     BufferTooShort { index: usize, length: usize },
 
     #[error("Not enough data!")]
-    NotEnoughData,
+    NotEnoughData { needed: usize, available: usize },
 
     #[error("Arguments of type {0} are not (yet) supported")]
     UnimplementedArgumentType(&'static str),

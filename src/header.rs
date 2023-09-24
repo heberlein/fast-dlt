@@ -22,7 +22,7 @@ impl<'a> StorageHeader<'a> {
         let data = &buf[index..];
 
         if data.len() < Self::MIN_LENGTH {
-            return Err(ParseError::NotEnoughData)
+            return Err(ParseError::NotEnoughData{needed: Self::MIN_LENGTH, available: data.len()})
         }
 
         if &data[..4] != b"DLT\x01" {
@@ -83,7 +83,7 @@ impl<'a> StandardHeader<'a> {
         let data = &buf[index..];
 
         if data.len() < Self::MIN_LENGTH {
-            return Err(DltError::fatal_at(index,ParseError::NotEnoughData));
+            return Err(DltError::fatal_at(index,ParseError::NotEnoughData{needed: Self::MIN_LENGTH, available: data.len()}));
         }
 
         // since we verified `data.len() < Self::MIN_LENGTH`
@@ -99,8 +99,8 @@ impl<'a> StandardHeader<'a> {
         // each of `ecu_id`, `session_id` and `timestamp` is 4 bytes long
         let must_have_total = 4 * (with_ecu_id as usize + with_session_id as usize + with_timestamp as usize) + Self::MIN_LENGTH;
 
-        if must_have_total >= data.len(){
-            return Err(DltError::fatal_at(index+Self::MIN_LENGTH,ParseError::NotEnoughData));
+        if must_have_total > data.len(){
+            return Err(DltError::fatal_at(index+Self::MIN_LENGTH,ParseError::NotEnoughData{needed: must_have_total, available: data.len()}));
         }
 
         let mut offset = 0;
@@ -248,7 +248,7 @@ impl<'a> ExtendedHeader<'a> {
         if index >= buf.len() {return Err(ParseError::BufferTooShort{index, length: buf.len()});}
         let data = &buf[index..];
         if data.len() < Self::MIN_LENGTH {
-            return Err(ParseError::NotEnoughData)
+            return Err(ParseError::NotEnoughData{needed: Self::MIN_LENGTH, available: data.len()})
         }
 
         let message_info = data[0];
