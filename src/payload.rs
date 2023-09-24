@@ -2,12 +2,9 @@
 use std::{fmt::Display, marker::PhantomData};
 
 use fallible_iterator::FallibleIterator;
-use simdutf8::basic::from_utf8;
+use simdutf8::basic::{from_utf8, Utf8Error};
 
-use crate::{
-    error::FatalError,
-    error::{ParseError, Result},
-};
+use crate::error::{DltError, ParseError};
 #[derive(Debug)]
 pub struct NonVerbosePayload<'a> {
     message_id: u32,
@@ -15,13 +12,24 @@ pub struct NonVerbosePayload<'a> {
 }
 
 impl<'a> NonVerbosePayload<'a> {
-    pub fn new(buf: &'a [u8]) -> Result<Self> {
-        let message_id = u32::from_be_bytes(buf[0..4].try_into()?);
-        let data = &buf[4..];
+    pub fn parse_at(index: usize, buf: &'a [u8], length: usize) -> Result<Self, ParseError> {
+        if index >= buf.len() {
+            return Err(ParseError::BufferTooShort {
+                index,
+                length: buf.len(),
+            });
+        }
+
+        if index + length > buf.len() {
+            return Err(ParseError::NotEnoughData);
+        }
+
+        let message_id = u32::from_be_bytes(buf[0..4].try_into().unwrap());
+        let data = &buf[index + 4..index + length];
         Ok(Self { message_id, data })
     }
 
-    pub fn as_str(&self) -> Result<&str> {
+    pub fn as_str(&self) -> Result<&str, Utf8Error> {
         Ok(from_utf8(self.data)?.trim_end_matches('\0'))
     }
 
@@ -47,6 +55,32 @@ pub struct VerbosePayload<'a> {
 }
 
 impl<'a> VerbosePayload<'a> {
+    pub fn parse_at(
+        index: usize,
+        buf: &'a [u8],
+        length: usize,
+        msb_first: bool,
+    ) -> Result<Self, ParseError> {
+        if index >= buf.len() {
+            return Err(ParseError::BufferTooShort {
+                index,
+                length: buf.len(),
+            });
+        }
+
+        if index + length > buf.len() {
+            return Err(ParseError::BufferTooShort {
+                index: index + length,
+                length: buf.len(),
+            });
+        }
+
+        Ok(Self {
+            data: &buf[index..index + length],
+            msb_first,
+        })
+    }
+
     pub fn new(buf: &'a [u8], msb_first: bool) -> Self {
         Self {
             data: buf,
@@ -72,7 +106,7 @@ impl<'a> Display for VerbosePayload<'a> {
         for arg in self.arguments() {
             match arg {
                 Ok(arg) => write!(f, "{arg} ")?,
-                Err(_) => write!(f, "ARGERROR")?,
+                Err(_) => write!(f, "ARGERROR")?, // TODO: this could be better
             };
         }
         Ok(())
@@ -162,7 +196,7 @@ impl<'a> FallibleIterator for Arguments<'a> {
     type Item = Argument<'a>;
     type Error = ParseError;
 
-    fn next(&mut self) -> Result<Option<Argument<'a>>> {
+    fn next(&mut self) -> Result<Option<Argument<'a>>, ParseError> {
         if self.index >= self.data.len() {
             return Ok(None);
         }
@@ -173,7 +207,7 @@ impl<'a> FallibleIterator for Arguments<'a> {
 }
 
 impl<'a> IntoIterator for Arguments<'a> {
-    type Item = Result<Argument<'a>>;
+    type Item = Result<Argument<'a>, ParseError>;
 
     type IntoIter = fallible_iterator::Iterator<Self>;
 
@@ -191,7 +225,9 @@ pub struct Argument<'a> {
 }
 
 impl<'a> Argument<'a> {
-    fn new(buf: &'a [u8], msb_first: bool) -> Result<Argument<'_>> {
+    const MIN_LENGTH: usize = todo!();
+
+    fn new(buf: &'a [u8], msb_first: bool) -> Result<Argument<'_>, ParseError> {
         macro_rules! parse_value {
             ($type: ty,  $slice: expr) => {
                 if msb_first {

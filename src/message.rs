@@ -5,7 +5,7 @@ use std::fmt::Display;
 use chrono::{TimeZone, Utc};
 
 use crate::{
-    error::Result,
+    error::DltError,
     header::{
         BusInfo, ControlInfo, ExtendedHeader, LogInfo, MessageTypeInfo, StandardHeader,
         StorageHeader, TraceInfo,
@@ -22,43 +22,48 @@ pub struct DltMessage<'a> {
 }
 
 impl<'a> DltMessage<'a> {
-    /// Parse an extended header at `buf[index]`
-    // TODO: similar methods everywhere
-    pub fn parse_at(index: usize, buf: &'a [u8]) -> Result<Self> {
-        todo!()
-    }
-
-    pub fn new(buf: &'a [u8]) -> Result<Self> {
-        let mut offset = 0;
-        let storage_header = StorageHeader::new(buf)?;
+    /// Parse a DLT message starting at `buf[index]`
+    pub fn parse_at(index: usize, buf: &'a [u8]) -> Result<Self, DltError> {
+        let mut offset = index;
+        let storage_header = match StorageHeader::parse_at(offset, buf) {
+            Ok(str_hdr) => str_hdr,
+            Err(err) => return Err(DltError::fatal_at(offset, err)),
+        };
         offset += storage_header.len();
-        let standard_header = StandardHeader::new(&buf[offset..])?;
+
+        let standard_header = StandardHeader::parse_at(offset, buf)?;
         offset += standard_header.len();
+
         let extended_header = if standard_header.use_extended_header() {
-            let extended_header = ExtendedHeader::new(&buf[offset..])?;
+            let extended_header = ExtendedHeader::parse_at(offset, buf)
+                .map_err(|err| DltError::recoverable_at(offset, standard_header.length, err))?;
             offset += extended_header.len();
             Some(extended_header)
         } else {
             None
         };
-        let payload_end = standard_header.length as usize + storage_header.len();
+
+        let payload_length = standard_header.length as usize
+            - standard_header.len()
+            - extended_header.as_ref().map_or(0, |hdr| hdr.len());
         let payload = if extended_header.as_ref().map_or(false, |hdr| hdr.verbose()) {
-            Payload::Verbose(VerbosePayload::new(
-                &buf[offset..payload_end],
-                standard_header.msb_first(),
-            ))
+            Payload::Verbose(
+                VerbosePayload::parse_at(offset, buf, payload_length, standard_header.msb_first())
+                    .map_err(|err| DltError::recoverable_at(offset, standard_header.length, err))?,
+            )
         } else {
-            Payload::NonVerbose(NonVerbosePayload::new(&buf[offset..payload_end])?)
+            Payload::NonVerbose(
+                NonVerbosePayload::parse_at(offset, buf, payload_length)
+                    .map_err(|err| DltError::recoverable_at(offset, standard_header.length, err))?,
+            )
         };
 
-        let msg = DltMessage {
+        Ok(DltMessage {
             storage_header,
             standard_header,
             extended_header,
             payload,
-        };
-
-        Ok(msg)
+        })
     }
 
     pub fn len(&self) -> usize {

@@ -1,4 +1,4 @@
-use crate::{error::FatalError, error::{Result, ParseError}};
+use crate::error::{DltError, ParseError};
 use std::str;
 
 use simdutf8::basic::from_utf8;
@@ -11,29 +11,35 @@ pub struct StorageHeader<'a> {
 }
 impl<'a> StorageHeader<'a> {
 
-    /// Parse an extended header at `buf[index]`
-    // TODO: similar methods everywhere
-    pub fn parse_at(index: usize, buf: &'a [u8]) -> Result<Self> {todo!()}
+    const MIN_LENGTH: usize = 16;
 
-
-    pub fn new(buf: &'a [u8]) -> Result<Self> {
-
-        if buf.len() < 4 + 4 + 4 + 4 {
-            return Err(ParseError::Fatal(FatalError::NotEnoughData))
+    /// Parse a storage header at `buf[index]`
+    pub fn parse_at(index: usize, buf: &'a [u8]) -> Result<Self, ParseError> {
+        if index >= buf.len() {
+            return Err(ParseError::BufferTooShort{index, length: buf.len()})
         }
 
-        if &buf[..4] != b"DLT\x01" {
-            return Err(ParseError::Fatal(FatalError::MissingDltPattern));
+        let data = &buf[index..];
+
+        if data.len() < Self::MIN_LENGTH {
+            return Err(ParseError::NotEnoughData)
         }
-        let seconds = u32::from_le_bytes(buf[4..8].try_into()?);
-        let microseconds = i32::from_le_bytes(buf[8..12].try_into()?);
-        let ecu_id = from_utf8(&buf[12..16])?.trim_end_matches('\0');
+
+        if &data[..4] != b"DLT\x01" {
+            return Err(ParseError::MissingDltPattern);
+        }
+
+        // unwrapping is ok here, because we check if there's enough data ahead of this
+        let seconds = u32::from_le_bytes(data[4..8].try_into().unwrap());
+        let microseconds = i32::from_le_bytes(data[8..12].try_into().unwrap());
+        let ecu_id = from_utf8(&data[12..16])?.trim_end_matches('\0');
+
         Ok(Self {
             seconds,
             microseconds,
             ecu_id,
-        })
-    }
+        })}
+
 
     pub fn len(&self) -> usize {
         4 /*DLT pattern*/ 
@@ -67,63 +73,71 @@ pub struct StandardHeader<'a> {
 
 impl<'a> StandardHeader<'a> {
 
-    /// Parse an extended header at `buf[index]`
-    // TODO: similar methods everywhere
-    pub fn parse_at(index: usize, buf: &'a [u8]) -> Result<Self> {todo!()}
+    const MIN_LENGTH: usize = 4;
 
-    pub fn new(buf: &'a [u8]) -> Result<Self> {
-        let Some(header_type) = buf.first() else {
-            return Err(FatalError::NotEnoughData.into())
-        };
+    /// Parse a standard header starting at `buf[index]`
+    pub fn parse_at(index: usize, buf: &'a [u8]) -> Result<Self, DltError> {
+        if index >= buf.len() {
+            return Err(DltError::Fatal { index, cause: ParseError::BufferTooShort{index, length: buf.len()} });
+        }
+        let data = &buf[index..];
 
-        let with_ecu_id = header_type & StdHeaderMask::WithEcuId as u8 == 0;
-        let with_session_id = header_type & StdHeaderMask::WithSessionId as u8 == 0;
-        let with_timestamp = header_type & StdHeaderMask::WithTimestamp as u8 == 0;
-
-        let min_size = 1+1 + 2 + with_ecu_id as usize * 4 + with_session_id as usize * 4 + with_timestamp as usize * 4;
-        if buf.len() < min_size {
-            return Err(FatalError::NotEnoughData.into())
+        if data.len() < Self::MIN_LENGTH {
+            return Err(DltError::fatal_at(index,ParseError::NotEnoughData));
         }
 
-        let message_counter = buf[1];
+        // since we verified `data.len() < Self::MIN_LENGTH`
+        // we can now safely read `header_type`, `message_counter` and `length`
+        // without checking if enough bytes are available everytime
+        let header_type = data[0];
+        let message_counter = data[1];
+        let length = u16::from_be_bytes(data[2..4].try_into().unwrap());
 
-        // use mem::transmute to convert to [u8;2]? only if todo is implemented
-        let length = u16::from_be_bytes(buf[2..4].try_into()?);
+        let with_ecu_id = header_type & StdHeaderMask::WithEcuId as u8 != 0;
+        let with_session_id = header_type & StdHeaderMask::WithSessionId as u8 != 0;
+        let with_timestamp = header_type & StdHeaderMask::WithTimestamp as u8 != 0;
+        // each of `ecu_id`, `session_id` and `timestamp` is 4 bytes long
+        let must_have_total = 4 * (with_ecu_id as usize + with_session_id as usize + with_timestamp as usize) + Self::MIN_LENGTH;
 
-        let mut optionals_offset = 0;
+        if must_have_total >= data.len(){
+            return Err(DltError::fatal_at(index+Self::MIN_LENGTH,ParseError::NotEnoughData));
+        }
+
+        let mut offset = 0;
         let ecu_id = if with_ecu_id {
-            None
-        } else {
-            optionals_offset += 4;
+            offset += 4;
             Some(from_utf8(
-                &buf[optionals_offset..optionals_offset + 4],
-            )?.trim_end_matches('\0'))
-        };
-        let session_id = if with_session_id {
-            None
+                &data[offset..offset + 4],
+            )
+            .map_err(|err| DltError::recoverable_at(index+offset, length, err))?
+            .trim_end_matches('\0'))
         } else {
-            optionals_offset += 4;
-            Some(u32::from_be_bytes(
-                buf[optionals_offset..optionals_offset + 4].try_into()?,
-            ))
-        };
-        let timestamp = if with_timestamp {
             None
-        } else {
-            optionals_offset += 4;
-            Some(u32::from_be_bytes(
-                buf[optionals_offset..optionals_offset + 4].try_into()?,
-            ))
         };
 
-        Ok(Self {
-            header_type: *header_type,
-            message_counter,
-            length,
-            ecu_id,
-            session_id,
-            timestamp,
-        })
+        let session_id = if with_session_id {
+            offset += 4;
+            Some(u32::from_be_bytes(
+                data[offset..offset + 4]
+                .try_into()
+                .unwrap(),
+            ))
+        } else {
+            None
+        };
+
+        let timestamp = if with_timestamp {
+            offset += 4;
+            Some(u32::from_be_bytes(
+                data[offset..offset + 4]
+                .try_into().
+                unwrap(),
+            ))
+        } else {
+            None
+        };
+
+        Ok(StandardHeader { header_type, message_counter, length, ecu_id, session_id, timestamp })
     }
 
     pub fn use_extended_header(&self) -> bool {
@@ -227,27 +241,28 @@ pub struct ExtendedHeader<'a> {
 
 impl<'a> ExtendedHeader<'a> {
 
-    /// Parse an extended header at `buf[index]`
-    // TODO: similar methods everywhere
-    pub fn parse_at(index: usize, buf: &'a [u8]) -> Result<Self> {todo!()}
+    const MIN_LENGTH: usize = 10;
 
-
-    pub fn new(buf: &'a [u8]) -> Result<Self> {
-        if buf.len() < 1 + 1 + 4 + 4 {
-            return Err(FatalError::NotEnoughData.into())
+    /// Parse an extended header starting at `buf[index]`
+    pub fn parse_at(index: usize, buf: &'a [u8]) -> Result<Self, ParseError> {
+        if index >= buf.len() {return Err(ParseError::BufferTooShort{index, length: buf.len()});}
+        let data = &buf[index..];
+        if data.len() < Self::MIN_LENGTH {
+            return Err(ParseError::NotEnoughData)
         }
 
-        let message_info = buf[0];
-        let number_of_arguments = buf[1];
-        let application_id = from_utf8(&buf[2..6])?.trim_end_matches('\0');
-        let context_id = from_utf8(&buf[6..10])?.trim_end_matches('\0');
+        let message_info = data[0];
+        let number_of_arguments = data[1];
+        let application_id = from_utf8(&data[2..6])?.trim_end_matches('\0');
+        let context_id = from_utf8(&data[6..10])?.trim_end_matches('\0');
         Ok(Self {
             message_info,
             number_of_arguments,
             application_id,
             context_id,
         })
-    }
+}
+
 
     pub fn verbose(&self) -> bool {
         self.message_info & 0b00000001 != 0
@@ -305,7 +320,7 @@ mod test {
     #[test]
     fn storage_header() {
         let bytes = b"DLT\x01\r\x00\x00\x00%\x00\x00\x00TEST";
-        let header = StorageHeader::new(bytes).unwrap();
+        let header = StorageHeader::parse_at(0, bytes).unwrap();
         assert_eq!(
             header,
             StorageHeader {
@@ -319,7 +334,7 @@ mod test {
     #[test]
     fn standard_header() {
         let bytes = b"|\n\x00dTEST\x00\x00\x00\x03\x00\x00\x059";
-        let header = StandardHeader::new(bytes).unwrap();
+        let header = StandardHeader::parse_at(0, bytes).unwrap();
         assert_eq!(
             header,
             StandardHeader {
@@ -335,7 +350,7 @@ mod test {
     #[test]
     fn extended_header() {
         let bytes = b"@\x07APPLCONT";
-        let header = ExtendedHeader::new(bytes).unwrap();
+        let header = ExtendedHeader::parse_at(0, bytes).unwrap();
         assert_eq!(
             header,
             ExtendedHeader {

@@ -1,56 +1,73 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum ParseError {
-    #[error("Recoverable Error at byte {index}: {cause}")]
+pub enum DltError {
+    #[error("Recoverable error at byte {index}: {cause}")]
     Recoverable {
-        message_len: usize,
+        /// The length of the faulty message
+        message_len: u16,
         index: usize,
-        cause: RecoverableError,
+        #[source]
+        cause: ParseError,
     },
 
-    #[error("Fatal Error: {0}")]
-    Fatal(#[from] FatalError),
+    #[error("Fatal error at byte {index}: {cause}")]
+    Fatal {
+        index: usize,
+        #[source]
+        cause: ParseError,
+    },
 }
 
-impl From<std::array::TryFromSliceError> for ParseError {
-    fn from(value: std::array::TryFromSliceError) -> Self {
-        Self::Fatal(value.into())
+impl DltError {
+    #[inline(always)]
+    pub fn recoverable_at(index: usize, message_len: u16, cause: impl Into<ParseError>) -> Self {
+        Self::Recoverable {
+            message_len,
+            index,
+            cause: cause.into(),
+        }
+    }
+
+    #[inline(always)]
+    pub fn fatal_at(index: usize, cause: impl Into<ParseError>) -> Self {
+        Self::Fatal {
+            index,
+            cause: cause.into(),
+        }
     }
 }
 
-impl From<simdutf8::basic::Utf8Error> for ParseError {
-    fn from(value: simdutf8::basic::Utf8Error) -> Self {
-        Self::Fatal(value.into())
-    }
-}
-
-impl ParseError {
-    pub fn unimplemented_arg(index: usize, len: usize, arg: impl Into<String>) -> Self {
+impl DltError {
+    pub fn unimplemented_arg(index: usize, len: u16, arg: &'static str) -> Self {
         Self::Recoverable {
             message_len: len,
-            index: index,
-            cause: RecoverableError::UnimplementedArgumentType(arg.into()),
+            index,
+            cause: ParseError::UnimplementedArgumentType(arg),
         }
     }
 }
 
 #[derive(Debug, Error)]
-pub enum RecoverableError {
-    #[error("Arguments of type {0} are not (yet) supported!")]
-    UnimplementedArgumentType(String),
-}
-
-#[derive(Debug, Error)]
-pub enum FatalError {
+pub enum ParseError {
     #[error("Missing DLT pattern!")]
     MissingDltPattern,
+
+    #[error("Failed to parse extended header")]
+    ExtendedHeader,
+
+    #[error("input buffer is too short: {index} > {length}")]
+    BufferTooShort { index: usize, length: usize },
+
     #[error("Not enough data!")]
     NotEnoughData,
+
+    #[error("Arguments of type {0} are not (yet) supported")]
+    UnimplementedArgumentType(&'static str),
+
     #[error("Invalid UTF-8 string!")]
     BadUTF8(#[from] simdutf8::basic::Utf8Error),
+
     #[error("Failed to convert slice!")]
     BadSliceConvert(#[from] std::array::TryFromSliceError),
 }
-
-pub type Result<T> = std::result::Result<T, ParseError>;
