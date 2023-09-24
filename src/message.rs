@@ -2,8 +2,6 @@
 
 use std::fmt::Display;
 
-use chrono::{TimeZone, Utc};
-
 use crate::{
     error::DltError,
     header::{
@@ -73,15 +71,13 @@ impl<'a> DltMessage<'a> {
 
 impl<'a> Display for DltMessage<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}.{:0<6} ",
-            // This is unfortunately really slow, ~50% of cpu time in this function is just this
-            Utc.timestamp_millis_opt(self.storage_header.seconds as i64 * 1000)
-                .map(|dt| dt.format("%Y/%m/%d %H:%M:%S"))
-                .unwrap(),
-            self.storage_header.microseconds
-        )?;
+        match speedate::DateTime::from_timestamp(
+            self.storage_header.seconds as i64,
+            self.storage_header.microseconds as u32,
+        ) {
+            Ok(dt) => write!(f, "{dt} ")?,
+            Err(_) => {}
+        };
 
         if let Some(timestamp) = self.standard_header.timestamp {
             write!(f, "{}.{:0>4} ", timestamp / 10000, timestamp % 10000)?;
