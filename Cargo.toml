@@ -15,6 +15,5 @@ codegen-units = 1
 [dependencies]
 thiserror = "1.0"
 fallible-iterator = "0.3.0"
-nom = "7.1.1"
 simdutf8 = "0.1.4"
 speedate = "0.12.0"
