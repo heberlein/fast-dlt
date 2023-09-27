@@ -51,8 +51,13 @@ impl<'a> DltMessage<'a> {
             )
         } else {
             Payload::NonVerbose(
-                NonVerbosePayload::parse_at(offset, buf, payload_length)
-                    .map_err(|err| DltError::recoverable_at(offset, standard_header.length, err))?,
+                NonVerbosePayload::parse_at(
+                    offset,
+                    buf,
+                    payload_length,
+                    standard_header.msb_first(),
+                )
+                .map_err(|err| DltError::recoverable_at(offset, standard_header.length, err))?,
             )
         };
 
@@ -75,7 +80,11 @@ impl<'a> Display for DltMessage<'a> {
             self.storage_header.seconds as i64,
             self.storage_header.microseconds as u32,
         ) {
-            Ok(dt) => write!(f, "{dt} ")?,
+            Ok(dt) => write!(
+                f,
+                "{}/{}/{} {} ",
+                dt.date.year, dt.date.month, dt.date.day, dt.time,
+            )?,
             Err(_) => {}
         };
 
@@ -121,6 +130,16 @@ impl<'a> Display for DltMessage<'a> {
                 MessageTypeInfo::Control(ControlInfo::Request) => write!(f, "control request "),
                 MessageTypeInfo::Control(ControlInfo::Response) => write!(f, "control response "),
             }?;
+        }
+
+        if let Some(ref ext_hdr) = self.extended_header {
+            if ext_hdr.verbose() {
+                write!(f, "verbose ")?;
+            } else {
+                write!(f, "non-verbose ")?;
+            }
+        } else {
+            write!(f, "non-verbose ")?;
         }
 
         if let Some(ref ext_hdr) = self.extended_header {

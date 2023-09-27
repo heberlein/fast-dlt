@@ -12,7 +12,12 @@ pub struct NonVerbosePayload<'a> {
 }
 
 impl<'a> NonVerbosePayload<'a> {
-    pub fn parse_at(index: usize, buf: &'a [u8], length: usize) -> Result<Self, ParseError> {
+    pub fn parse_at(
+        index: usize,
+        buf: &'a [u8],
+        length: usize,
+        msb_first: bool,
+    ) -> Result<Self, ParseError> {
         if index >= buf.len() {
             return Err(ParseError::BufferTooShort {
                 index,
@@ -27,7 +32,11 @@ impl<'a> NonVerbosePayload<'a> {
             });
         }
 
-        let message_id = u32::from_be_bytes(buf[0..4].try_into().unwrap());
+        let message_id = if msb_first {
+            u32::from_be_bytes(buf[0..4].try_into().unwrap())
+        } else {
+            u32::from_le_bytes(buf[0..4].try_into().unwrap())
+        };
         let data = &buf[index + 4..index + length];
         Ok(Self { message_id, data })
     }
@@ -46,7 +55,7 @@ impl<'a> Display for NonVerbosePayload<'a> {
         write!(f, "[{:x}] ", self.message_id)?;
         self.data
             .iter()
-            .try_for_each(|byte| write!(f, "{byte:x}"))?;
+            .try_for_each(|byte| write!(f, "{byte:02x}"))?;
         Ok(())
     }
 }
