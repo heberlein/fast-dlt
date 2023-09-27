@@ -1,7 +1,6 @@
 #![allow(unused)]
 use std::{fmt::Display, marker::PhantomData};
 
-use fallible_iterator::FallibleIterator;
 use simdutf8::basic::{from_utf8, Utf8Error};
 
 use crate::error::{DltError, ParseError};
@@ -105,6 +104,7 @@ impl<'a> VerbosePayload<'a> {
             data: self.data,
             index: 0,
             msb_first: self.msb_first,
+            fatal: false,
         }
     }
 
@@ -202,29 +202,26 @@ pub struct Arguments<'a> {
     data: &'a [u8],
     index: usize,
     msb_first: bool,
+    fatal: bool,
 }
 
-impl<'a> FallibleIterator for Arguments<'a> {
-    type Item = Argument<'a>;
-    type Error = ParseError;
-
-    fn next(&mut self) -> Result<Option<Argument<'a>>, ParseError> {
-        if self.index >= self.data.len() {
-            return Ok(None);
-        }
-        let arg = Argument::new(&self.data[self.index..], self.msb_first)?;
-        self.index += arg.len();
-        Ok(Some(arg))
-    }
-}
-
-impl<'a> IntoIterator for Arguments<'a> {
+impl<'a> Iterator for Arguments<'a> {
     type Item = Result<Argument<'a>, ParseError>;
 
-    type IntoIter = fallible_iterator::Iterator<Self>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iterator()
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.fatal || self.index >= self.data.len() {
+            return None;
+        }
+        match Argument::new(&self.data[self.index..], self.msb_first) {
+            Ok(arg) => {
+                self.index += arg.len();
+                Some(Ok(arg))
+            }
+            Err(err) => {
+                self.fatal = true;
+                Some(Err(err))
+            }
+        }
     }
 }
 

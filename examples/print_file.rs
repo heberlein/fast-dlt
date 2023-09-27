@@ -1,7 +1,6 @@
 use std::{error::Error, path::PathBuf};
 
-use fallible_iterator::FallibleIterator;
-use fast_dlt::file::DltFile;
+use fast_dlt::{error::DltError, file::DltFile};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let Some(path) = std::env::args().nth(1).map(PathBuf::from) else {
@@ -12,7 +11,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let file = DltFile::new(&data);
 
-    file.for_each(|msg| Ok(println!("{msg}")))?;
+    file.for_each(|message| match message {
+        Ok(message) => println!("{message}"),
+        Err(DltError::Recoverable {
+            message_len: _,
+            index,
+            cause,
+        }) => println!("recoverable error at byte {index}: {cause}"),
+        Err(DltError::Fatal { index, cause }) => println!("Fatal error at byte {index}: {cause}"),
+    });
 
     Ok(())
 }

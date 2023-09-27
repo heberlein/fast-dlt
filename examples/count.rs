@@ -1,6 +1,5 @@
 use std::{error::Error, path::PathBuf, time::Instant};
 
-use fallible_iterator::FallibleIterator;
 use fast_dlt::file::DltFile;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -13,7 +12,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let file = DltFile::new(&data);
 
     let start = Instant::now();
-    let count = file.count()?;
+    let count = file.count();
     let elapsed = start.elapsed();
 
     println!(

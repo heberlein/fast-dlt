@@ -1,5 +1,3 @@
-use fallible_iterator::FallibleIterator;
-
 use crate::error::DltError;
 use crate::message::DltMessage;
 
@@ -8,35 +6,48 @@ const MIN_MESSAGE_LENGTH: usize = 16 /*Storage Header*/ + 4 /*Smallest Standard 
 pub struct DltFile<'a> {
     buf: &'a [u8],
     offset: usize,
+    fatal: bool,
 }
 
 impl<'a> DltFile<'a> {
     pub fn new(buf: &'a [u8]) -> Self {
-        Self { buf, offset: 0 }
+        Self {
+            buf,
+            offset: 0,
+            fatal: false,
+        }
     }
 }
 
-impl<'a> IntoIterator for DltFile<'a> {
+impl<'a> Iterator for DltFile<'a> {
     type Item = Result<DltMessage<'a>, DltError>;
 
-    type IntoIter = fallible_iterator::Iterator<Self>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iterator()
-    }
-}
-
-impl<'a> FallibleIterator for DltFile<'a> {
-    type Item = DltMessage<'a>;
-    type Error = DltError;
-
-    fn next(&mut self) -> Result<Option<DltMessage<'a>>, DltError> {
-        if self.offset >= self.buf.len() {
-            Ok(None)
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.fatal || self.offset >= self.buf.len() {
+            None
         } else {
-            let message = DltMessage::parse_at(self.offset, self.buf)?;
-            self.offset += message.len();
-            Ok(Some(message))
+            match DltMessage::parse_at(self.offset, self.buf) {
+                Ok(message) => {
+                    self.offset += message.len();
+                    Some(Ok(message))
+                }
+                Err(DltError::Recoverable {
+                    message_len,
+                    index,
+                    cause,
+                }) => {
+                    self.offset += message_len as usize;
+                    Some(Err(DltError::Recoverable {
+                        message_len,
+                        index,
+                        cause,
+                    }))
+                }
+                Err(err) => {
+                    self.fatal = true;
+                    Some(Err(err))
+                }
+            }
         }
     }
 
