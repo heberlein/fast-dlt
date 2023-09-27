@@ -253,7 +253,7 @@ impl<'a> Argument<'a> {
         let r#type = type_info & TypeInfoMask::Type as u32;
 
         let value = match r#type {
-            x if x == ArgType::Bool as u32 => Value::Bool(buf[0] != 0),
+            x if x == ArgType::Bool as u32 => Value::Bool(buf[4] != 0),
             x if x == ArgType::Signed as u32 => match type_length {
                 0x01 => Value::I8(buf[0] as i8),
                 0x02 => Value::I16(parse_value!(i16, buf[4..6])),
