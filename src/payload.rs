@@ -32,9 +32,9 @@ impl<'a> NonVerbosePayload<'a> {
         }
 
         let message_id = if msb_first {
-            u32::from_be_bytes(buf[0..4].try_into().unwrap())
+            u32::from_be_bytes(buf[index..index + 4].try_into().unwrap())
         } else {
-            u32::from_le_bytes(buf[0..4].try_into().unwrap())
+            u32::from_le_bytes(buf[index..index + 4].try_into().unwrap())
         };
         let data = &buf[index + 4..index + length];
         Ok(Self { message_id, data })
@@ -51,7 +51,7 @@ impl<'a> NonVerbosePayload<'a> {
 
 impl<'a> Display for NonVerbosePayload<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{:x}] ", self.message_id)?;
+        write!(f, "[{}] ", self.message_id)?;
         self.data
             .iter()
             .try_for_each(|byte| write!(f, "{byte:02x}"))?;
@@ -255,7 +255,7 @@ impl<'a> Argument<'a> {
         let value = match r#type {
             x if x == ArgType::Bool as u32 => Value::Bool(buf[4] != 0),
             x if x == ArgType::Signed as u32 => match type_length {
-                0x01 => Value::I8(buf[0] as i8),
+                0x01 => Value::I8(buf[4] as i8),
                 0x02 => Value::I16(parse_value!(i16, buf[4..6])),
                 0x03 => Value::I32(parse_value!(i32, buf[4..8])),
                 0x04 => Value::I64(parse_value!(i64, buf[4..12])),
@@ -263,7 +263,7 @@ impl<'a> Argument<'a> {
                 _ => unreachable!(),
             },
             x if x == ArgType::Unsigned as u32 => match type_length {
-                0x01 => Value::U8(buf[0]),
+                0x01 => Value::U8(buf[4]),
                 0x02 => Value::U16(parse_value!(u16, buf[4..6])),
                 0x03 => Value::U32(parse_value!(u32, buf[4..8])),
                 0x04 => Value::U64(parse_value!(u64, buf[4..12])),
@@ -362,10 +362,10 @@ impl<'a> Display for Value<'a> {
             Value::I32(i) => write!(f, "{i}"),
             Value::I64(i) => write!(f, "{i}"),
             Value::I128(i) => write!(f, "{i}"),
-            Value::F32(fl) => write!(f, "{fl}"),
-            Value::F64(fl) => write!(f, "{fl}"),
+            Value::F32(fl) => write!(f, "{fl:?}"),
+            Value::F64(fl) => write!(f, "{fl:?}"),
             Value::String(s) => write!(f, "{s}"),
-            Value::Raw(r) => r.iter().try_for_each(|byte| write!(f, "{byte:x?}")),
+            Value::Raw(r) => r.iter().try_for_each(|byte| write!(f, "{byte:02x}")),
         }
     }
 }
