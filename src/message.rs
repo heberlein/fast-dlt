@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use std::fmt::Display;
 
 use crate::{
@@ -69,8 +67,23 @@ impl<'a> DltMessage<'a> {
         })
     }
 
+    // The length of the message in bytes
     pub fn len(&self) -> usize {
         self.storage_header.len() + self.standard_header.length as usize
+    }
+
+    pub fn ecu_id(&self) -> &str {
+        self.storage_header.ecu_id
+    }
+    pub fn app_id(&self) -> Option<&str> {
+        self.extended_header
+            .as_ref()
+            .map(|ext_hdr| ext_hdr.application_id)
+    }
+    pub fn context_id(&self) -> Option<&str> {
+        self.extended_header
+            .as_ref()
+            .map(|ext_hdr| ext_hdr.context_id)
     }
 }
 
