@@ -15,6 +15,7 @@ pub struct DltMessage<'a> {
     pub standard_header: StandardHeader<'a>,
     pub extended_header: Option<ExtendedHeader<'a>>,
     pub payload: Payload<'a>,
+    source: &'a [u8],
 }
 
 impl<'a> DltMessage<'a> {
@@ -60,6 +61,7 @@ impl<'a> DltMessage<'a> {
         };
 
         Ok(DltMessage {
+            source: &buf[index..index + storage_header.len() + standard_header.length as usize],
             storage_header,
             standard_header,
             extended_header,
@@ -84,6 +86,10 @@ impl<'a> DltMessage<'a> {
         self.extended_header
             .as_ref()
             .map(|ext_hdr| ext_hdr.context_id)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.source
     }
 }
 
