@@ -82,7 +82,7 @@ impl<'a> Display for DltMessage<'a> {
         ) {
             Ok(dt) => write!(
                 f,
-                "{}/{}/{} {} ",
+                "{:0>4}/{:0>2}/{:0>2} {} ",
                 dt.date.year, dt.date.month, dt.date.day, dt.time,
             )?,
             Err(_) => {}
