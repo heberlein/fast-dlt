@@ -252,9 +252,14 @@ impl<'a> Argument<'a> {
         let type_length = type_info & TypeInfoMask::Length as u32;
         let r#type = type_info & TypeInfoMask::Type as u32;
 
-        let value = match r#type {
-            x if x == ArgType::Bool as u32 => Value::Bool(buf[4] != 0),
-            x if x == ArgType::Signed as u32 => match type_length {
+        let arg_type = match ArgType::try_from(r#type) {
+            Ok(arg_type) => arg_type,
+            Err(unknown) => return Err(ParseError::UnknownArgumentType(unknown)),
+        };
+
+        let value = match arg_type {
+            ArgType::Bool => Value::Bool(buf[4] != 0),
+            ArgType::Signed => match type_length {
                 0x01 => Value::I8(buf[4] as i8),
                 0x02 => Value::I16(parse_value!(i16, buf[4..6])),
                 0x03 => Value::I32(parse_value!(i32, buf[4..8])),
@@ -262,7 +267,7 @@ impl<'a> Argument<'a> {
                 0x05 => Value::I128(parse_value!(i128, buf[4..20])),
                 _ => unreachable!(),
             },
-            x if x == ArgType::Unsigned as u32 => match type_length {
+            ArgType::Unsigned => match type_length {
                 0x01 => Value::U8(buf[4]),
                 0x02 => Value::U16(parse_value!(u16, buf[4..6])),
                 0x03 => Value::U32(parse_value!(u32, buf[4..8])),
@@ -270,7 +275,7 @@ impl<'a> Argument<'a> {
                 0x05 => Value::U128(parse_value!(u128, buf[4..20])),
                 _ => unreachable!(),
             },
-            x if x == ArgType::Float as u32 => match type_length {
+            ArgType::Float => match type_length {
                 0x01 => unimplemented!(),
                 0x02 => unimplemented!(),
                 0x03 => Value::F32(parse_value!(f32, buf[4..8])),
@@ -278,21 +283,29 @@ impl<'a> Argument<'a> {
                 0x05 => unimplemented!(),
                 _ => unreachable!(),
             },
-
-            x if x == ArgType::Array as u32 => todo!(),
-            x if x == ArgType::String as u32 => {
+            ArgType::Array => {
+                return Err(ParseError::UnimplementedArgumentType("array"));
+            }
+            ArgType::String => {
                 let length = parse_value!(u16, buf[4..6]);
                 Value::String(from_utf8(&buf[6..6 + length as usize])?.trim_end_matches('\0'))
             }
-            x if x == ArgType::Raw as u32 => {
+            ArgType::Raw => {
                 let length = parse_value!(u16, buf[4..6]);
                 Value::Raw(&buf[6..6 + length as usize])
             }
-            x if x == ArgType::VariableInfo as u32 => todo!(),
-            x if x == ArgType::FixedPoint as u32 => todo!(),
-            x if x == ArgType::TraceInfo as u32 => todo!(),
-            x if x == ArgType::Struct as u32 => todo!(),
-            x => unreachable!("{x:x}"),
+            ArgType::VariableInfo => {
+                return Err(ParseError::UnimplementedArgumentType("variable info"));
+            }
+            ArgType::FixedPoint => {
+                return Err(ParseError::UnimplementedArgumentType("fixed point"));
+            }
+            ArgType::TraceInfo => {
+                return Err(ParseError::UnimplementedArgumentType("trace info"));
+            }
+            ArgType::Struct => {
+                return Err(ParseError::UnimplementedArgumentType("struct"));
+            }
         };
         Ok(Argument {
             type_info,
@@ -385,6 +398,28 @@ pub enum ArgType {
     FixedPoint =   0b00000000000000000001000000000000,
     TraceInfo =    0b00000000000000000010000000000000,
     Struct =       0b00000000000000000100000000000000,
+}
+
+impl TryFrom<u32> for ArgType {
+    type Error = u32;
+
+    #[inline]
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            0b00000000000000000000000000010000 => Ok(Self::Bool),
+            0b00000000000000000000000000100000 => Ok(Self::Signed),
+            0b00000000000000000000000001000000 => Ok(Self::Unsigned),
+            0b00000000000000000000000010000000 => Ok(Self::Float),
+            0b00000000000000000000000100000000 => Ok(Self::Array),
+            0b00000000000000000000001000000000 => Ok(Self::String),
+            0b00000000000000000000010000000000 => Ok(Self::Raw),
+            0b00000000000000000000100000000000 => Ok(Self::VariableInfo),
+            0b00000000000000000001000000000000 => Ok(Self::FixedPoint),
+            0b00000000000000000010000000000000 => Ok(Self::TraceInfo),
+            0b00000000000000000100000000000000 => Ok(Self::Struct),
+            other => Err(other),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
