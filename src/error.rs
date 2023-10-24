@@ -65,6 +65,9 @@ pub enum ParseError {
     #[error("Arguments of type {0} are not (yet) supported")]
     UnimplementedArgumentType(&'static str),
 
+    #[error("{0} unsupported")]
+    Unsupported(&'static str),
+
     #[error("No such argument type: {0}")]
     UnknownArgumentType(u32),
 

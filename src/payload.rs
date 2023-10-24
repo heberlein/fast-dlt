@@ -237,6 +237,9 @@ impl<'a> Argument<'a> {
     const MIN_LENGTH: usize = todo!();
 
     fn new(buf: &'a [u8], msb_first: bool) -> Result<Argument<'_>, ParseError> {
+        // IMPROVEMENT: errors should be recoverable as long as the length of the argument is known,
+        // which is trivial when var  info is not used.
+        // Even with var info errors should be recoverable if the error happens after parsing var info
         macro_rules! parse_value {
             ($type: ty,  $slice: expr) => {
                 if msb_first {
@@ -248,7 +251,9 @@ impl<'a> Argument<'a> {
         }
 
         let type_info = u32::from_le_bytes(buf[0..4].try_into()?);
-        let var_info = (); // TODO
+        let var_info = (type_info & TypeInfo::VariableInfo as u32) != 0;
+        let fixed_point = (type_info & TypeInfo::FixedPoint as u32) != 0;
+
         let type_length = type_info & TypeInfoMask::Length as u32;
         let r#type = type_info & TypeInfoMask::Type as u32;
 
@@ -256,6 +261,13 @@ impl<'a> Argument<'a> {
             Ok(arg_type) => arg_type,
             Err(unknown) => return Err(ParseError::UnknownArgumentType(unknown)),
         };
+
+        if var_info {
+            return Err(ParseError::Unsupported("var info"));
+        }
+        if fixed_point {
+            return Err(ParseError::Unsupported("fixed point"));
+        }
 
         let value = match arg_type {
             ArgType::Bool => Value::Bool(buf[4] != 0),
@@ -276,11 +288,11 @@ impl<'a> Argument<'a> {
                 _ => unreachable!(),
             },
             ArgType::Float => match type_length {
-                0x01 => unimplemented!(),
-                0x02 => unimplemented!(),
+                0x01 => unreachable!(),
+                0x02 => return Err(ParseError::Unsupported("f16")),
                 0x03 => Value::F32(parse_value!(f32, buf[4..8])),
                 0x04 => Value::F64(parse_value!(f64, buf[4..12])),
-                0x05 => unimplemented!(),
+                0x05 => return Err(ParseError::Unsupported("f128")),
                 _ => unreachable!(),
             },
             ArgType::Array => {
@@ -293,15 +305,6 @@ impl<'a> Argument<'a> {
             ArgType::Raw => {
                 let length = parse_value!(u16, buf[4..6]);
                 Value::Raw(&buf[6..6 + length as usize])
-            }
-            ArgType::VariableInfo => {
-                return Err(ParseError::UnimplementedArgumentType("variable info"));
-            }
-            ArgType::FixedPoint => {
-                return Err(ParseError::UnimplementedArgumentType("fixed point"));
-            }
-            ArgType::TraceInfo => {
-                return Err(ParseError::UnimplementedArgumentType("trace info"));
             }
             ArgType::Struct => {
                 return Err(ParseError::UnimplementedArgumentType("struct"));
@@ -341,7 +344,7 @@ pub enum Value<'a> {
     I128(i128),
     F32(f32),
     F64(f64),
-    //Array, // intentionally unsupported
+    //Array, // unsupported
     String(&'a str),
     Raw(&'a [u8]),
 }
@@ -360,7 +363,6 @@ impl<'a> Value<'a> {
     }
 }
 
-// NOTE: use https://crates.io/crates/fixed for fixed point values?
 impl<'a> Display for Value<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -394,9 +396,9 @@ pub enum ArgType {
     Array =        0b00000000000000000000000100000000,
     String =       0b00000000000000000000001000000000,
     Raw =          0b00000000000000000000010000000000,
-    VariableInfo = 0b00000000000000000000100000000000,
-    FixedPoint =   0b00000000000000000001000000000000,
-    TraceInfo =    0b00000000000000000010000000000000,
+    // VariableInfo = 0b00000000000000000000100000000000,
+    // FixedPoint =   0b00000000000000000001000000000000,
+    // TraceInfo =    0b00000000000000000010000000000000,
     Struct =       0b00000000000000000100000000000000,
 }
 
@@ -413,9 +415,6 @@ impl TryFrom<u32> for ArgType {
             0b00000000000000000000000100000000 => Ok(Self::Array),
             0b00000000000000000000001000000000 => Ok(Self::String),
             0b00000000000000000000010000000000 => Ok(Self::Raw),
-            0b00000000000000000000100000000000 => Ok(Self::VariableInfo),
-            0b00000000000000000001000000000000 => Ok(Self::FixedPoint),
-            0b00000000000000000010000000000000 => Ok(Self::TraceInfo),
             0b00000000000000000100000000000000 => Ok(Self::Struct),
             other => Err(other),
         }

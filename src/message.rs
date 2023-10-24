@@ -3,8 +3,8 @@ use std::fmt::Display;
 use crate::{
     error::DltError,
     header::{
-        BusInfo, ControlInfo, ExtendedHeader, LogInfo, MessageTypeInfo, StandardHeader,
-        StorageHeader, TraceInfo,
+        BusInfo, ControlInfo, ExtendedHeader, LogInfo, MessageType, MessageTypeInfo,
+        StandardHeader, StorageHeader, TraceInfo,
     },
     payload::{NonVerbosePayload, Payload, VerbosePayload},
 };
@@ -86,6 +86,22 @@ impl<'a> DltMessage<'a> {
         self.extended_header
             .as_ref()
             .map(|ext_hdr| ext_hdr.context_id)
+    }
+
+    pub fn message_type(&self) -> Option<MessageType> {
+        self.extended_header
+            .as_ref()
+            .map(ExtendedHeader::message_type)
+    }
+
+    pub fn type_info(&self) -> Option<MessageTypeInfo> {
+        self.extended_header.as_ref().map(ExtendedHeader::type_info)
+    }
+
+    pub fn verbose(&self) -> bool {
+        self.extended_header
+            .as_ref()
+            .map_or(false, ExtendedHeader::verbose)
     }
 
     pub fn as_bytes(&self) -> &[u8] {
