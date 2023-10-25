@@ -104,6 +104,10 @@ impl<'a> DltMessage<'a> {
             .map_or(false, ExtendedHeader::verbose)
     }
 
+    pub fn timestamp(&self) -> Option<u32> {
+        self.standard_header.timestamp
+    }
+
     pub fn as_bytes(&self) -> &[u8] {
         self.source
     }
