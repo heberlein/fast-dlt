@@ -11,4 +11,7 @@ pub mod header;
 pub mod message;
 pub mod payload;
 
+pub use file::DltFile;
+pub use message::DltMessage;
+
 // TODO: use Cow<'a, str> everywhere?
