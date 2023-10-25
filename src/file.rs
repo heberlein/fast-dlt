@@ -1,4 +1,4 @@
-use crate::error::DltError;
+use crate::error::{DltError, ParseError};
 use crate::message::DltMessage;
 
 const MIN_MESSAGE_LENGTH: usize = 16 /*Storage Header*/ + 4 /*Smallest Standard Header, no Extended Header */;
@@ -16,6 +16,17 @@ impl<'a> DltFile<'a> {
             offset: 0,
             fatal: false,
         }
+    }
+
+    /// silently skip over recoverable errors
+    pub fn skip_recoverable_errors(
+        self,
+    ) -> impl Iterator<Item = Result<DltMessage<'a>, ParseError>> {
+        self.filter_map(|msg| match msg {
+            Ok(msg) => Some(Ok(msg)),
+            Err(DltError::Recoverable { .. }) => None,
+            Err(DltError::Fatal { cause, .. }) => Some(Err(cause)),
+        })
     }
 }
 
