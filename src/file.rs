@@ -23,6 +23,8 @@ impl<'a> DltFile<'a> {
         self,
     ) -> impl Iterator<Item = Result<DltMessage<'a>, ParseError>> {
         self.filter_map(|msg| match msg {
+            // NOTE: techinally it's possible to just look for the next `DLT0x1`-pattern to recover from any error
+            // might be worth refactoring eventually
             Ok(msg) => Some(Ok(msg)),
             Err(DltError::Recoverable { .. }) => None,
             Err(DltError::Fatal { cause, .. }) => Some(Err(cause)),
