@@ -22,7 +22,7 @@ pub struct DltMessage<'a> {
 
 impl<'a> DltMessage<'a> {
     pub fn from_slice(mut buf: &'a [u8]) -> Result<Self, DltError> {
-        let source = &buf[..];
+        let source = buf;
         let storage_header = StorageHeader::from_slice(buf)?;
         buf.advance(storage_header.len());
 
@@ -119,16 +119,15 @@ impl<'a> DltMessage<'a> {
 
 impl<'a> Display for DltMessage<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match speedate::DateTime::from_timestamp(
+        if let Ok(dt) = speedate::DateTime::from_timestamp(
             self.storage_header.seconds as i64,
             self.storage_header.microseconds as u32,
         ) {
-            Ok(dt) => write!(
+            write!(
                 f,
                 "{:0>4}/{:0>2}/{:0>2} {} ",
                 dt.date.year, dt.date.month, dt.date.day, dt.time,
-            )?,
-            Err(_) => {}
+            )?
         };
 
         if let Some(timestamp) = self.standard_header.timestamp {

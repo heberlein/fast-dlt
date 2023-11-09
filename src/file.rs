@@ -31,7 +31,7 @@ impl<'a> Iterator for DltFile<'a> {
                 Err(err) => {
                     if let Some(advance_by) = err.advance_by {
                         self.buf.advance(advance_by);
-                        return Some(Err(err));
+                        Some(Err(err))
                     } else {
                         // we use this instead of `memchr::memmem::find`
                         // because the malformed message could still have a valid `DLT\x01`
@@ -41,9 +41,9 @@ impl<'a> Iterator for DltFile<'a> {
                         {
                             Some(start) => {
                                 self.buf.advance(start);
-                                return Some(Err(err));
+                                Some(Err(err))
                             }
-                            None => return None,
+                            None => None,
                         }
                     }
                 }
