@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use bytes::Buf;
+
 use crate::{
     error::DltError,
     header::{
@@ -19,22 +21,20 @@ pub struct DltMessage<'a> {
 }
 
 impl<'a> DltMessage<'a> {
-    /// Parse a DLT message starting at `buf[index]`
-    pub fn parse_at(index: usize, buf: &'a [u8]) -> Result<Self, DltError> {
-        let mut offset = index;
-        let storage_header = match StorageHeader::parse_at(offset, buf) {
-            Ok(str_hdr) => str_hdr,
-            Err(err) => return Err(DltError::fatal_at(offset, err)),
-        };
-        offset += storage_header.len();
+    pub fn from_slice(mut buf: &'a [u8]) -> Result<Self, DltError> {
+        let source = &buf[..];
+        let storage_header = StorageHeader::from_slice(buf)?;
+        buf.advance(storage_header.len());
 
-        let standard_header = StandardHeader::parse_at(offset, buf)?;
-        offset += standard_header.len();
+        let standard_header = StandardHeader::from_slice(buf)?;
+        buf.advance(standard_header.len());
 
         let extended_header = if standard_header.use_extended_header() {
-            let extended_header = ExtendedHeader::parse_at(offset, buf)
-                .map_err(|err| DltError::recoverable_at(offset, standard_header.length, err))?;
-            offset += extended_header.len();
+            let extended_header = ExtendedHeader::from_slice(buf).map_err(|err| DltError {
+                advance_by: Some(storage_header.len() + standard_header.length as usize),
+                source: err,
+            })?;
+            buf.advance(extended_header.len());
             Some(extended_header)
         } else {
             None
@@ -42,26 +42,30 @@ impl<'a> DltMessage<'a> {
 
         let payload_length = standard_header.length as usize
             - standard_header.len()
-            - extended_header.as_ref().map_or(0, |hdr| hdr.len());
-        let payload = if extended_header.as_ref().map_or(false, |hdr| hdr.verbose()) {
+            - extended_header.as_ref().map_or(0, ExtendedHeader::len);
+        let payload = if extended_header
+            .as_ref()
+            .map_or(false, ExtendedHeader::verbose)
+        {
             Payload::Verbose(
-                VerbosePayload::parse_at(offset, buf, payload_length, standard_header.msb_first())
-                    .map_err(|err| DltError::recoverable_at(offset, standard_header.length, err))?,
+                VerbosePayload::from_slice(buf, payload_length, standard_header.msb_first())
+                    .map_err(|err| DltError {
+                        advance_by: Some(storage_header.len() + standard_header.length as usize),
+                        source: err,
+                    })?,
             )
         } else {
             Payload::NonVerbose(
-                NonVerbosePayload::parse_at(
-                    offset,
-                    buf,
-                    payload_length,
-                    standard_header.msb_first(),
-                )
-                .map_err(|err| DltError::recoverable_at(offset, standard_header.length, err))?,
+                NonVerbosePayload::from_slice(buf, payload_length, standard_header.msb_first())
+                    .map_err(|err| DltError {
+                        advance_by: Some(storage_header.len() + standard_header.length as usize),
+                        source: err,
+                    })?,
             )
         };
 
         Ok(DltMessage {
-            source: &buf[index..index + storage_header.len() + standard_header.length as usize],
+            source: &source[..storage_header.len() + standard_header.length as usize],
             storage_header,
             standard_header,
             extended_header,

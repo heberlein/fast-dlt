@@ -16,3 +16,5 @@ codegen-units = 1
 thiserror = "1.0"
 simdutf8 = "0.1.4"
 speedate = "0.12.0"
+memchr = "2.6.4"
+bytes = "1.5.0"

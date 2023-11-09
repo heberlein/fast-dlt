@@ -15,3 +15,31 @@ pub use file::DltFile;
 pub use message::DltMessage;
 
 // TODO: use Cow<'a, str> everywhere?
+
+#[macro_export]
+macro_rules! get_str {
+    ($buf:expr, $len: expr) => {{
+        let ret = $buf.get(..$len);
+        let ret = ret.ok_or(ParseError::NotEnoughData {
+            needed: $len,
+            available: $buf.remaining(),
+        })?;
+
+        $buf.advance($len);
+        from_utf8(ret).map_err(ParseError::from)
+    }};
+}
+
+#[macro_export]
+macro_rules! get_slice {
+    ($buf: expr, $len: expr) => {{
+        let ret = $buf.get(..$len);
+        let ret = ret.ok_or(ParseError::NotEnoughData {
+            needed: $len,
+            available: $buf.remaining(),
+        })?;
+
+        $buf.advance($len);
+        ret
+    }};
+}

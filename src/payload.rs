@@ -1,9 +1,13 @@
 #![allow(unused)]
 use std::{fmt::Display, marker::PhantomData};
 
+use bytes::Buf;
 use simdutf8::basic::{from_utf8, Utf8Error};
 
-use crate::error::{DltError, ParseError};
+use crate::{
+    error::{DltError, ParseError},
+    get_slice, get_str,
+};
 #[derive(Debug)]
 pub struct NonVerbosePayload<'a> {
     message_id: u32,
@@ -11,32 +15,27 @@ pub struct NonVerbosePayload<'a> {
 }
 
 impl<'a> NonVerbosePayload<'a> {
-    pub fn parse_at(
-        index: usize,
-        buf: &'a [u8],
+    pub fn from_slice(
+        mut buf: &'a [u8],
         length: usize,
         msb_first: bool,
     ) -> Result<Self, ParseError> {
-        if index >= buf.len() {
-            return Err(ParseError::BufferTooShort {
-                index,
-                length: buf.len(),
-            });
-        }
-
-        if index + length > buf.len() {
+        if length > buf.remaining() {
             return Err(ParseError::NotEnoughData {
-                needed: index + length,
-                available: buf.len(),
+                needed: length,
+                available: buf.remaining(),
             });
         }
 
         let message_id = if msb_first {
-            u32::from_be_bytes(buf[index..index + 4].try_into().unwrap())
+            buf.get_u32()
         } else {
-            u32::from_le_bytes(buf[index..index + 4].try_into().unwrap())
+            buf.get_u32_le()
         };
-        let data = &buf[index + 4..index + length];
+        let data = buf.get(..length).ok_or_else(|| ParseError::NotEnoughData {
+            needed: length,
+            available: buf.remaining(),
+        })?;
         Ok(Self { message_id, data })
     }
 
@@ -66,30 +65,12 @@ pub struct VerbosePayload<'a> {
 }
 
 impl<'a> VerbosePayload<'a> {
-    pub fn parse_at(
-        index: usize,
-        buf: &'a [u8],
-        length: usize,
-        msb_first: bool,
-    ) -> Result<Self, ParseError> {
-        if index >= buf.len() {
-            return Err(ParseError::BufferTooShort {
-                index,
-                length: buf.len(),
-            });
-        }
-
-        if index + length > buf.len() {
-            return Err(ParseError::BufferTooShort {
-                index: index + length,
-                length: buf.len(),
-            });
-        }
-
-        Ok(Self {
-            data: &buf[index..index + length],
-            msb_first,
-        })
+    pub fn from_slice(buf: &'a [u8], length: usize, msb_first: bool) -> Result<Self, ParseError> {
+        let data = buf.get(..length).ok_or_else(|| ParseError::NotEnoughData {
+            needed: length,
+            available: buf.remaining(),
+        })?;
+        Ok(Self { data, msb_first })
     }
 
     pub fn new(buf: &'a [u8], msb_first: bool) -> Self {
@@ -197,6 +178,9 @@ enum TypeInfo {
     Utf8 =         0b00000000000000001000000000000000,
 }
 
+// TODO: make sure error handling in Arguments actually makes sense
+/// An iterator over the arguments of a verbose payload.
+/// If an argument can not be parsed, this iterator will return an error and will not attempt to parse any further arguments
 #[derive(Debug)]
 pub struct Arguments<'a> {
     data: &'a [u8],
@@ -236,21 +220,18 @@ pub struct Argument<'a> {
 impl<'a> Argument<'a> {
     const MIN_LENGTH: usize = todo!();
 
-    fn new(buf: &'a [u8], msb_first: bool) -> Result<Argument<'_>, ParseError> {
-        // IMPROVEMENT: errors should be recoverable as long as the length of the argument is known,
-        // which is trivial when var  info is not used.
-        // Even with var info errors should be recoverable if the error happens after parsing var info
-        macro_rules! parse_value {
-            ($type: ty,  $slice: expr) => {
+    fn new(mut buf: &'a [u8], msb_first: bool) -> Result<Argument<'_>, ParseError> {
+        macro_rules! msb {
+            ($be: expr, $le: expr) => {{
                 if msb_first {
-                    <$type>::from_be_bytes($slice.try_into()?)
+                    $be
                 } else {
-                    <$type>::from_le_bytes($slice.try_into()?)
+                    $le
                 }
-            };
+            }};
         }
 
-        let type_info = u32::from_le_bytes(buf[0..4].try_into()?);
+        let type_info = buf.get_u32_le();
         let var_info = (type_info & TypeInfo::VariableInfo as u32) != 0;
         let fixed_point = (type_info & TypeInfo::FixedPoint as u32) != 0;
 
@@ -270,28 +251,28 @@ impl<'a> Argument<'a> {
         }
 
         let value = match arg_type {
-            ArgType::Bool => Value::Bool(buf[4] != 0),
+            ArgType::Bool => Value::Bool(buf.get_u8() != 0),
             ArgType::Signed => match type_length {
-                0x01 => Value::I8(buf[4] as i8),
-                0x02 => Value::I16(parse_value!(i16, buf[4..6])),
-                0x03 => Value::I32(parse_value!(i32, buf[4..8])),
-                0x04 => Value::I64(parse_value!(i64, buf[4..12])),
-                0x05 => Value::I128(parse_value!(i128, buf[4..20])),
+                0x01 => Value::I8(buf.get_i8()),
+                0x02 => Value::I16(msb!(buf.get_i16(), buf.get_i16_le())),
+                0x03 => Value::I32(msb!(buf.get_i32(), buf.get_i32_le())),
+                0x04 => Value::I64(msb!(buf.get_i64(), buf.get_i64_le())),
+                0x05 => Value::I128(msb!(buf.get_i128(), buf.get_i128_le())),
                 _ => unreachable!(),
             },
             ArgType::Unsigned => match type_length {
-                0x01 => Value::U8(buf[4]),
-                0x02 => Value::U16(parse_value!(u16, buf[4..6])),
-                0x03 => Value::U32(parse_value!(u32, buf[4..8])),
-                0x04 => Value::U64(parse_value!(u64, buf[4..12])),
-                0x05 => Value::U128(parse_value!(u128, buf[4..20])),
+                0x01 => Value::U8(buf.get_u8()),
+                0x02 => Value::U16(msb!(buf.get_u16(), buf.get_u16_le())),
+                0x03 => Value::U32(msb!(buf.get_u32(), buf.get_u32_le())),
+                0x04 => Value::U64(msb!(buf.get_u64(), buf.get_u64_le())),
+                0x05 => Value::U128(msb!(buf.get_u128(), buf.get_u128_le())),
                 _ => unreachable!(),
             },
             ArgType::Float => match type_length {
                 0x01 => unreachable!(),
                 0x02 => return Err(ParseError::Unsupported("f16")),
-                0x03 => Value::F32(parse_value!(f32, buf[4..8])),
-                0x04 => Value::F64(parse_value!(f64, buf[4..12])),
+                0x03 => Value::F32(msb!(buf.get_f32(), buf.get_f32_le())),
+                0x04 => Value::F64(msb!(buf.get_f64(), buf.get_f64_le())),
                 0x05 => return Err(ParseError::Unsupported("f128")),
                 _ => unreachable!(),
             },
@@ -299,12 +280,12 @@ impl<'a> Argument<'a> {
                 return Err(ParseError::UnimplementedArgumentType("array"));
             }
             ArgType::String => {
-                let length = parse_value!(u16, buf[4..6]);
-                Value::String(from_utf8(&buf[6..6 + length as usize])?.trim_end_matches('\0'))
+                let length = msb!(buf.get_u16(), buf.get_u16_le());
+                Value::String(get_str!(buf, length as usize)?.trim_end_matches('\0'))
             }
             ArgType::Raw => {
-                let length = parse_value!(u16, buf[4..6]);
-                Value::Raw(&buf[6..6 + length as usize])
+                let length = msb!(buf.get_u16(), buf.get_u16_le());
+                Value::Raw(get_slice!(buf, length as usize))
             }
             ArgType::Struct => {
                 return Err(ParseError::UnimplementedArgumentType("struct"));
