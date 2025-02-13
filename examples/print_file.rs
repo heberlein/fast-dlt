@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let file = File::new(&data);
 
-    file.flat_map(Result::ok)
+    file.filter_map(Result::ok)
         .for_each(|message| println!("{message}"));
 
     Ok(())
