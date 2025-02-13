@@ -10,7 +10,7 @@ use std::str;
 #[derive(Debug, PartialEq, Eq)]
 pub struct StorageHeader<'a> {
     pub seconds: u32,
-    pub microseconds: u32,
+    pub microseconds: i32,
     pub ecu_id: &'a str,
 }
 impl<'a> StorageHeader<'a> {
@@ -33,7 +33,7 @@ impl<'a> StorageHeader<'a> {
 
         // unwrapping is ok here, because we check if there's enough data ahead of this
         let seconds = buf.get_u32_le();
-        let microseconds = buf.get_u32_le();
+        let microseconds = buf.get_i32_le();
         let ecu_id = get_str!(buf, 4)?.trim_end_matches('\0');
 
         Ok(Self {

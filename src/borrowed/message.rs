@@ -182,13 +182,13 @@ impl Display for Message<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Ok(dt) = speedate::DateTime::from_timestamp(
             self.storage_header.seconds as i64,
-            self.storage_header.microseconds,
+            self.storage_header.microseconds as u32,
         ) {
             write!(
                 f,
                 "{:0>4}/{:0>2}/{:0>2} {} ",
                 dt.date.year, dt.date.month, dt.date.day, dt.time,
-            )?
+            )?;
         };
 
         if let Some(timestamp) = self.standard_header.timestamp {

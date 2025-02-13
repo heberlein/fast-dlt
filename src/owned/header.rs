@@ -1,4 +1,3 @@
-
 use bytes_utils::Str;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -8,7 +7,7 @@ use serde::{Deserialize, Serialize};
 // #[cfg_attr(test, derive(Arbitrary))]
 pub struct StorageHeader {
     pub(crate) seconds: u32,
-    pub(crate) microseconds: u32,
+    pub(crate) microseconds: i32,
     pub(crate) ecu_id: Str,
 }
 
