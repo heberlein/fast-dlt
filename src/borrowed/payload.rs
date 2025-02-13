@@ -48,7 +48,7 @@ impl<'a> NonVerbosePayload<'a> {
     }
 }
 
-impl<'a> Display for NonVerbosePayload<'a> {
+impl Display for NonVerbosePayload<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}] ", self.message_id)?;
         self.data
@@ -94,7 +94,7 @@ impl<'a> VerbosePayload<'a> {
     }
 }
 
-impl<'a> Display for VerbosePayload<'a> {
+impl Display for VerbosePayload<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for arg in self.arguments() {
             match arg {
@@ -134,7 +134,7 @@ impl<'a> Payload<'a> {
     }
 }
 
-impl<'a> Display for Payload<'a> {
+impl Display for Payload<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Payload::NonVerbose(nv) => write!(f, "{nv}"),
@@ -304,7 +304,7 @@ impl<'a> Argument<'a> {
     }
 }
 
-impl<'a> Display for Argument<'a> {
+impl Display for Argument<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.value)
     }
@@ -330,7 +330,7 @@ pub enum Value<'a> {
     Raw(&'a [u8]),
 }
 
-impl<'a> Value<'a> {
+impl Value<'_> {
     fn len(&self) -> usize {
         match self {
             Value::U8(_) | Value::I8(_) | Value::Bool(_) => 1,
@@ -344,7 +344,7 @@ impl<'a> Value<'a> {
     }
 }
 
-impl<'a> Display for Value<'a> {
+impl Display for Value<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Bool(b) => write!(f, "{b}"),

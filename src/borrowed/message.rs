@@ -178,11 +178,11 @@ impl<'a> Message<'a> {
     }
 }
 
-impl<'a> Display for Message<'a> {
+impl Display for Message<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Ok(dt) = speedate::DateTime::from_timestamp(
             self.storage_header.seconds as i64,
-            self.storage_header.microseconds as u32,
+            self.storage_header.microseconds,
         ) {
             write!(
                 f,

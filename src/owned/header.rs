@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 
 use bytes_utils::Str;
 #[cfg(feature = "serde")]
