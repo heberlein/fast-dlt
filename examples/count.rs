@@ -1,6 +1,6 @@
 use std::{error::Error, path::PathBuf, time::Instant};
 
-use fast_dlt::file::DltFile;
+use fast_dlt::borrowed::file::File;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let Some(path) = std::env::args().nth(1).map(PathBuf::from) else {
@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let data = std::fs::read(path)?;
 
-    let file = DltFile::new(&data);
+    let file = File::new(&data);
 
     let start = Instant::now();
     let count = file.count();

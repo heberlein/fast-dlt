@@ -10,8 +10,8 @@ use crate::{
 };
 #[derive(Debug)]
 pub struct NonVerbosePayload<'a> {
-    message_id: u32,
-    data: &'a [u8],
+    pub(crate) message_id: u32,
+    pub(crate) data: &'a [u8],
 }
 
 impl<'a> NonVerbosePayload<'a> {
@@ -60,8 +60,8 @@ impl<'a> Display for NonVerbosePayload<'a> {
 
 #[derive(Debug)]
 pub struct VerbosePayload<'a> {
-    data: &'a [u8],
-    msb_first: bool,
+    pub(crate) data: &'a [u8],
+    pub(crate) msb_first: bool,
 }
 
 impl<'a> VerbosePayload<'a> {

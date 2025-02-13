@@ -1,27 +1,27 @@
+use crate::borrowed::message::Message;
 use crate::error::DltError;
-use crate::message::DltMessage;
 use bytes::Buf;
 
 const MIN_MESSAGE_LENGTH: usize = 16 /*Storage Header*/ + 4 /*Smallest Standard Header, no Extended Header */;
 #[derive(Debug)]
-pub struct DltFile<'a> {
+pub struct File<'a> {
     buf: &'a [u8],
 }
 
-impl<'a> DltFile<'a> {
+impl<'a> File<'a> {
     pub fn new(buf: &'a [u8]) -> Self {
         Self { buf }
     }
 }
 
-impl<'a> Iterator for DltFile<'a> {
-    type Item = Result<DltMessage<'a>, DltError>;
+impl<'a> Iterator for File<'a> {
+    type Item = Result<Message<'a>, DltError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if !self.buf.has_remaining() {
             None
         } else {
-            match DltMessage::from_slice(self.buf) {
+            match Message::from_slice(self.buf) {
                 Ok(message) => {
                     self.buf.advance(message.len());
                     Some(Ok(message))

@@ -1,47 +1,61 @@
-use crate::{error::{DltError, ParseError}, get_str, get_slice};
-use std::str;
-use bytes::Buf; 
+use crate::{
+    error::{DltError, ParseError},
+    get_slice, get_str, owned,
+};
+use bytes::Buf;
+use bytes_utils::Str;
 use simdutf8::basic::from_utf8;
+use std::str;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct StorageHeader<'a> {
     pub seconds: u32,
-    pub microseconds: i32,
+    pub microseconds: u32,
     pub ecu_id: &'a str,
 }
 impl<'a> StorageHeader<'a> {
-
     const MIN_LENGTH: usize = 16;
 
     pub fn from_slice(mut buf: &'a [u8]) -> Result<Self, ParseError> {
-
         if buf.remaining() < Self::MIN_LENGTH {
-            return Err(ParseError::NotEnoughData{needed: Self::MIN_LENGTH, available: buf.len()})
+            return Err(ParseError::NotEnoughData {
+                needed: Self::MIN_LENGTH,
+                available: buf.len(),
+            });
         }
+
+        // let [b'D', b'L', b'T', b'\x01', buf @ ..] = buf else {return Err(ParseError::MissingDltPattern)};
 
         // check for DLT pattern
         if get_slice!(buf, 4) != b"DLT\x01" {
-            return Err(ParseError::MissingDltPattern)
+            return Err(ParseError::MissingDltPattern);
         }
 
- 
         // unwrapping is ok here, because we check if there's enough data ahead of this
         let seconds = buf.get_u32_le();
-        let microseconds = buf.get_i32_le();
+        let microseconds = buf.get_u32_le();
         let ecu_id = get_str!(buf, 4)?.trim_end_matches('\0');
 
         Ok(Self {
             seconds,
             microseconds,
             ecu_id,
-        })}
-
+        })
+    }
 
     pub fn len(&self) -> usize {
-        4 /*DLT pattern*/ 
-        + 4 /*seconds*/ 
-        + 4 /*microseconds*/ 
+        4 /*DLT pattern*/
+        + 4 /*seconds*/
+        + 4 /*microseconds*/
         + 4 /*ecu id*/
+    }
+
+    pub fn to_owned(&self) -> owned::header::StorageHeader {
+        owned::header::StorageHeader {
+            seconds: self.seconds,
+            microseconds: self.microseconds,
+            ecu_id: Str::from(self.ecu_id),
+        }
     }
 }
 
@@ -59,21 +73,24 @@ enum StdHeaderMask {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct StandardHeader<'a> {
-    header_type: u8,
-    pub message_counter: u8,
-    pub length: u16,
-    pub ecu_id: Option<&'a str>,
-    pub session_id: Option<u32>,
-    pub timestamp: Option<u32>,
+    pub(crate) header_type: u8,
+    pub(crate) message_counter: u8,
+    pub(crate) length: u16,
+    pub(crate) ecu_id: Option<&'a str>,
+    pub(crate) session_id: Option<u32>,
+    pub(crate) timestamp: Option<u32>,
 }
 
 impl<'a> StandardHeader<'a> {
-
     const MIN_LENGTH: usize = 4;
 
     pub fn from_slice(mut buf: &'a [u8]) -> Result<Self, DltError> {
         if buf.remaining() < Self::MIN_LENGTH {
-            return Err(ParseError::NotEnoughData{needed: Self::MIN_LENGTH, available: buf.remaining()}.into());
+            return Err(ParseError::NotEnoughData {
+                needed: Self::MIN_LENGTH,
+                available: buf.remaining(),
+            }
+            .into());
         }
 
         // since we verified `data.len() < Self::MIN_LENGTH`
@@ -87,10 +104,15 @@ impl<'a> StandardHeader<'a> {
         let with_session_id = header_type & StdHeaderMask::WithSessionId as u8 != 0;
         let with_timestamp = header_type & StdHeaderMask::WithTimestamp as u8 != 0;
         // each of `ecu_id`, `session_id` and `timestamp` is 4 bytes long
-        let must_have_remaining = 4 * (with_ecu_id as usize + with_session_id as usize + with_timestamp as usize);
+        let must_have_remaining =
+            4 * (with_ecu_id as usize + with_session_id as usize + with_timestamp as usize);
 
-        if must_have_remaining > buf.remaining(){
-            return Err(ParseError::NotEnoughData{needed: must_have_remaining, available: buf.remaining()}.into());
+        if must_have_remaining > buf.remaining() {
+            return Err(ParseError::NotEnoughData {
+                needed: must_have_remaining,
+                available: buf.remaining(),
+            }
+            .into());
         }
 
         let ecu_id = if with_ecu_id {
@@ -106,12 +128,19 @@ impl<'a> StandardHeader<'a> {
         };
 
         let timestamp = if with_timestamp {
-         Some(buf.get_u32())
+            Some(buf.get_u32())
         } else {
             None
         };
 
-        Ok(StandardHeader { header_type, message_counter, length, ecu_id, session_id, timestamp })
+        Ok(StandardHeader {
+            header_type,
+            message_counter,
+            length,
+            ecu_id,
+            session_id,
+            timestamp,
+        })
     }
 
     pub fn use_extended_header(&self) -> bool {
@@ -145,15 +174,25 @@ impl<'a> StandardHeader<'a> {
         + self.session_id.is_some() as usize * 4
         + self.timestamp.is_some() as usize * 4
     }
-}
 
+    pub fn to_owned(&self) -> owned::header::StandardHeader {
+        owned::header::StandardHeader {
+            header_type: self.header_type,
+            message_counter: self.message_counter,
+            length: self.length,
+            ecu_id: self.ecu_id.map(Str::from),
+            session_id: self.session_id,
+            timestamp: self.timestamp,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum MessageType {
     Log = 0x0,
     AppTrace = 0x1,
     NwTrace = 0x2,
-    Control = 0x3
+    Control = 0x3,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -163,7 +202,7 @@ pub enum LogInfo {
     Warn = 0x3,
     Info = 0x4,
     Debug = 0x5,
-    Verbose = 0x6
+    Verbose = 0x6,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -172,7 +211,7 @@ pub enum TraceInfo {
     FunctionIn = 0x2,
     FunctionOut = 0x3,
     State = 0x4,
-    Vfb = 0x5
+    Vfb = 0x5,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -184,9 +223,7 @@ pub enum BusInfo {
     Ethernet = 0x5,
     SomeIP = 0x6,
     // UserDefined
-
 }
-
 
 #[derive(Debug, Clone, Copy)]
 pub enum ControlInfo {
@@ -200,26 +237,26 @@ pub enum MessageTypeInfo {
     Log(LogInfo),
     Trace(TraceInfo),
     Bus(BusInfo),
-    Control(ControlInfo)
+    Control(ControlInfo),
 }
-
-
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExtendedHeader<'a> {
-    message_info: u8,
-    pub number_of_arguments: u8,
-    pub application_id: &'a str,
-    pub context_id: &'a str,
+    pub(crate) message_info: u8,
+    pub(crate) number_of_arguments: u8,
+    pub(crate) app_id: &'a str,
+    pub(crate) ctx_id: &'a str,
 }
 
 impl<'a> ExtendedHeader<'a> {
-
     const MIN_LENGTH: usize = 10;
 
     pub fn from_slice(mut buf: &'a [u8]) -> Result<Self, ParseError> {
         if buf.len() < Self::MIN_LENGTH {
-            return Err(ParseError::NotEnoughData{needed: Self::MIN_LENGTH, available: buf.len()})
+            return Err(ParseError::NotEnoughData {
+                needed: Self::MIN_LENGTH,
+                available: buf.len(),
+            });
         }
 
         let message_info = buf.get_u8();
@@ -229,11 +266,10 @@ impl<'a> ExtendedHeader<'a> {
         Ok(Self {
             message_info,
             number_of_arguments,
-            application_id,
-            context_id,
+            app_id: application_id,
+            ctx_id: context_id,
         })
-}
-
+    }
 
     pub fn verbose(&self) -> bool {
         self.message_info & 0b00000001 != 0
@@ -245,9 +281,8 @@ impl<'a> ExtendedHeader<'a> {
             0x1 => MessageType::AppTrace,
             0x2 => MessageType::NwTrace,
             0x3 => MessageType::Control,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
-
     }
 
     pub fn type_info(&self) -> MessageTypeInfo {
@@ -263,15 +298,15 @@ impl<'a> ExtendedHeader<'a> {
             (MessageType::AppTrace, 0x3) => MessageTypeInfo::Trace(TraceInfo::FunctionOut),
             (MessageType::AppTrace, 0x4) => MessageTypeInfo::Trace(TraceInfo::State),
             (MessageType::AppTrace, 0x5) => MessageTypeInfo::Trace(TraceInfo::Vfb),
-            (MessageType::NwTrace, 0x1)=> MessageTypeInfo::Bus(BusInfo::Ipc),
-            (MessageType::NwTrace, 0x2)=> MessageTypeInfo::Bus(BusInfo::Can),
-            (MessageType::NwTrace, 0x3)=> MessageTypeInfo::Bus(BusInfo::Flexray),
-            (MessageType::NwTrace, 0x4)=> MessageTypeInfo::Bus(BusInfo::Most),
-            (MessageType::NwTrace, 0x5)=> MessageTypeInfo::Bus(BusInfo::Ethernet),
-            (MessageType::NwTrace, 0x6)=> MessageTypeInfo::Bus(BusInfo::SomeIP),
+            (MessageType::NwTrace, 0x1) => MessageTypeInfo::Bus(BusInfo::Ipc),
+            (MessageType::NwTrace, 0x2) => MessageTypeInfo::Bus(BusInfo::Can),
+            (MessageType::NwTrace, 0x3) => MessageTypeInfo::Bus(BusInfo::Flexray),
+            (MessageType::NwTrace, 0x4) => MessageTypeInfo::Bus(BusInfo::Most),
+            (MessageType::NwTrace, 0x5) => MessageTypeInfo::Bus(BusInfo::Ethernet),
+            (MessageType::NwTrace, 0x6) => MessageTypeInfo::Bus(BusInfo::SomeIP),
             (MessageType::Control, 0x1) => MessageTypeInfo::Control(ControlInfo::Request),
             (MessageType::Control, 0x2) => MessageTypeInfo::Control(ControlInfo::Response),
-            (message_type, info) => unreachable!("Unexpected: ({message_type:?}, {info})")
+            (message_type, info) => unreachable!("Unexpected: ({message_type:?}, {info})"),
         }
     }
 
@@ -280,6 +315,15 @@ impl<'a> ExtendedHeader<'a> {
         + 1 /*number_of_arguments*/
         + 4 /*application_id*/
         + 4 /*context id*/
+    }
+
+    pub fn to_owned(&self) -> owned::header::ExtendedHeader {
+        owned::header::ExtendedHeader {
+            message_info: self.message_info,
+            number_of_arguments: self.number_of_arguments,
+            app_id: Str::from(self.app_id),
+            ctx_id: Str::from(self.ctx_id),
+        }
     }
 }
 
@@ -327,8 +371,8 @@ mod test {
             ExtendedHeader {
                 message_info: 64,
                 number_of_arguments: 7,
-                application_id: "APPL",
-                context_id: "CONT"
+                app_id: "APPL",
+                ctx_id: "CONT"
             }
         )
     }

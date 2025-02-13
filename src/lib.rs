@@ -5,16 +5,9 @@
 // https://www.autosar.org/fileadmin/standards/R20-11/FO/AUTOSAR_PRS_LogAndTraceProtocol.pdf
 
 #![warn(missing_debug_implementations, rust_2018_idioms)]
+pub mod borrowed;
 pub mod error;
-pub mod file;
-pub mod header;
-pub mod message;
-pub mod payload;
-
-pub use file::DltFile;
-pub use message::DltMessage;
-
-// TODO: use Cow<'a, str> everywhere?
+pub mod owned;
 
 #[macro_export]
 macro_rules! get_str {
